@@ -48,9 +48,9 @@ public class FuMO25BlockEntity extends BlockEntity implements MenuProvider, GeoB
     public static final int MAX_ENERGY = 1000000;
 
     // 固定距离，以后有人改动这个需要自行解决GUI渲染问题
-    public static final int DEFAULT_RANGE = 96;
-    public static final int MAX_RANGE = 128;
-    public static final int GLOW_RANGE = 64;
+    public static final int DEFAULT_RANGE = 128;
+    public static final int MAX_RANGE = 512;
+    public static final int GLOW_RANGE = 96;
 
     public static final int DEFAULT_ENERGY_COST = 256;
     public static final int MAX_ENERGY_COST = 1024;
