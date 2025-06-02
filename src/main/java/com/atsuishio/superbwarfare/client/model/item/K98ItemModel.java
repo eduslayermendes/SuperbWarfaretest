@@ -2,9 +2,8 @@ package com.atsuishio.superbwarfare.client.model.item;
 
 import com.atsuishio.superbwarfare.Mod;
 import com.atsuishio.superbwarfare.client.overlay.CrossHairOverlay;
+import com.atsuishio.superbwarfare.data.gun.GunData;
 import com.atsuishio.superbwarfare.event.ClientEventHandler;
-import com.atsuishio.superbwarfare.item.gun.GunItem;
-import com.atsuishio.superbwarfare.item.gun.data.GunData;
 import com.atsuishio.superbwarfare.item.gun.sniper.K98Item;
 import net.minecraft.client.Minecraft;
 import net.minecraft.resources.ResourceLocation;
@@ -13,36 +12,34 @@ import net.minecraft.world.entity.player.Player;
 import net.minecraft.world.item.ItemStack;
 import software.bernie.geckolib.core.animatable.model.CoreGeoBone;
 import software.bernie.geckolib.core.animation.AnimationState;
-import software.bernie.geckolib.model.GeoModel;
 
-public class K98ItemModel extends GeoModel<K98Item> {
+public class K98ItemModel extends CustomGunModel<K98Item> {
 
     @Override
     public ResourceLocation getAnimationResource(K98Item animatable) {
-        return Mod.loc("animations/k98.animation.json");
+        return Mod.loc("animations/k_98.animation.json");
     }
 
     @Override
     public ResourceLocation getModelResource(K98Item animatable) {
-        return Mod.loc("geo/kar98k.geo.json");
+        return Mod.loc("geo/k_98.geo.json");
     }
 
     @Override
     public ResourceLocation getTextureResource(K98Item animatable) {
-        return Mod.loc("textures/item/k98.png");
+        return Mod.loc("textures/item/k_98.png");
     }
 
     @Override
-    public void setCustomAnimations(K98Item animatable, long instanceId, AnimationState animationState) {
-        CoreGeoBone gun = getAnimationProcessor().getBone("bone");
-        CoreGeoBone shen = getAnimationProcessor().getBone("shen");
-        CoreGeoBone clip = getAnimationProcessor().getBone("mag");
-
+    public void setCustomAnimations(K98Item animatable, long instanceId, AnimationState<K98Item> animationState) {
         Player player = Minecraft.getInstance().player;
         if (player == null) return;
         ItemStack stack = player.getMainHandItem();
-        if (!(stack.getItem() instanceof GunItem)) return;
+        if (shouldCancelRender(stack, animationState)) return;
 
+        CoreGeoBone gun = getAnimationProcessor().getBone("bone");
+        CoreGeoBone shen = getAnimationProcessor().getBone("shen");
+        CoreGeoBone clip = getAnimationProcessor().getBone("mag");
 
         if (GunData.from(stack).reload.prepareTimer.get() > 11 && GunData.from(stack).ammo.get() == 1) {
             clip.setScaleX(0);
@@ -110,6 +107,6 @@ public class K98ItemModel extends GeoModel<K98Item> {
             camera.setRotY(numR * camera.getRotY());
             camera.setRotZ(numR * camera.getRotZ());
         }
-        ClientEventHandler.shake(Mth.RAD_TO_DEG * camera.getRotX(), Mth.RAD_TO_DEG * camera.getRotY(), Mth.RAD_TO_DEG * camera.getRotZ());
+        ClientEventHandler.handleReloadShake(Mth.RAD_TO_DEG * camera.getRotX(), Mth.RAD_TO_DEG * camera.getRotY(), Mth.RAD_TO_DEG * camera.getRotZ());
     }
 }

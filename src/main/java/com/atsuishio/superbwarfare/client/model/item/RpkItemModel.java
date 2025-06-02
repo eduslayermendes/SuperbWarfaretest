@@ -3,10 +3,9 @@ package com.atsuishio.superbwarfare.client.model.item;
 import com.atsuishio.superbwarfare.Mod;
 import com.atsuishio.superbwarfare.client.AnimationHelper;
 import com.atsuishio.superbwarfare.client.overlay.CrossHairOverlay;
+import com.atsuishio.superbwarfare.data.gun.GunData;
+import com.atsuishio.superbwarfare.data.gun.value.AttachmentType;
 import com.atsuishio.superbwarfare.event.ClientEventHandler;
-import com.atsuishio.superbwarfare.item.gun.GunItem;
-import com.atsuishio.superbwarfare.item.gun.data.GunData;
-import com.atsuishio.superbwarfare.item.gun.data.value.AttachmentType;
 import com.atsuishio.superbwarfare.item.gun.machinegun.RpkItem;
 import net.minecraft.client.Minecraft;
 import net.minecraft.resources.ResourceLocation;
@@ -15,16 +14,15 @@ import net.minecraft.world.entity.player.Player;
 import net.minecraft.world.item.ItemStack;
 import software.bernie.geckolib.core.animatable.model.CoreGeoBone;
 import software.bernie.geckolib.core.animation.AnimationState;
-import software.bernie.geckolib.model.GeoModel;
 
-public class RpkItemModel extends GeoModel<RpkItem> {
+public class RpkItemModel extends CustomGunModel<RpkItem> {
 
     public static float fireRotY = 0f;
     public static float fireRotZ = 0f;
 
     @Override
     public ResourceLocation getAnimationResource(RpkItem animatable) {
-        return Mod.loc("animations/ak.animation.json");
+        return Mod.loc("animations/ak_47.animation.json");
     }
 
     @Override
@@ -38,7 +36,12 @@ public class RpkItemModel extends GeoModel<RpkItem> {
     }
 
     @Override
-    public void setCustomAnimations(RpkItem animatable, long instanceId, AnimationState animationState) {
+    public void setCustomAnimations(RpkItem animatable, long instanceId, AnimationState<RpkItem> animationState) {
+        Player player = Minecraft.getInstance().player;
+        if (player == null) return;
+        ItemStack stack = player.getMainHandItem();
+        if (shouldCancelRender(stack, animationState)) return;
+
         CoreGeoBone gun = getAnimationProcessor().getBone("bone");
         CoreGeoBone scope = getAnimationProcessor().getBone("Scope1");
         CoreGeoBone button = getAnimationProcessor().getBone("button");
@@ -47,11 +50,6 @@ public class RpkItemModel extends GeoModel<RpkItem> {
         CoreGeoBone bone171 = getAnimationProcessor().getBone("bone171");
         CoreGeoBone scope3 = getAnimationProcessor().getBone("Scope3");
         CoreGeoBone shuan = getAnimationProcessor().getBone("shuan");
-
-        Player player = Minecraft.getInstance().player;
-        if (player == null) return;
-        ItemStack stack = player.getMainHandItem();
-        if (!(stack.getItem() instanceof GunItem)) return;
 
         float times = 0.6f * (float) Math.min(Minecraft.getInstance().getDeltaFrameTime(), 0.8);
         double zt = ClientEventHandler.zoomTime;
@@ -79,14 +77,14 @@ public class RpkItemModel extends GeoModel<RpkItem> {
         float scaleZ = switch (type) {
             case 0, 1 -> 0.7f;
             case 2 -> 0.74f;
-            case 3 -> 0.78f;
+            case 3 -> 0.8f;
             default -> 0f;
         };
         float posZ = switch (type) {
             case 0 -> 3.3f;
             case 1 -> 4.2f;
             case 2 -> 4.4f;
-            case 3 -> 4.25f;
+            case 3 -> 4.6f;
             default -> 0f;
         };
 
@@ -145,7 +143,7 @@ public class RpkItemModel extends GeoModel<RpkItem> {
         float numP = (float) (1 - 0.92 * zt);
 
         AnimationHelper.handleReloadShakeAnimation(stack, main, camera, numR, numP);
-        ClientEventHandler.shake(Mth.RAD_TO_DEG * camera.getRotX(), Mth.RAD_TO_DEG * camera.getRotY(), Mth.RAD_TO_DEG * camera.getRotZ());
+        ClientEventHandler.handleReloadShake(Mth.RAD_TO_DEG * camera.getRotX(), Mth.RAD_TO_DEG * camera.getRotY(), Mth.RAD_TO_DEG * camera.getRotZ());
         AnimationHelper.handleShellsAnimation(getAnimationProcessor(), 1f, 0.35f);
     }
 }

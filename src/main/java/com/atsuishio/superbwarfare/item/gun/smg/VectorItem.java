@@ -3,14 +3,12 @@ package com.atsuishio.superbwarfare.item.gun.smg;
 import com.atsuishio.superbwarfare.Mod;
 import com.atsuishio.superbwarfare.client.ClickHandler;
 import com.atsuishio.superbwarfare.client.PoseTool;
-import com.atsuishio.superbwarfare.client.renderer.item.VectorItemRenderer;
+import com.atsuishio.superbwarfare.client.renderer.gun.VectorItemRenderer;
+import com.atsuishio.superbwarfare.data.gun.GunData;
+import com.atsuishio.superbwarfare.data.gun.value.AttachmentType;
 import com.atsuishio.superbwarfare.event.ClientEventHandler;
 import com.atsuishio.superbwarfare.init.ModSounds;
 import com.atsuishio.superbwarfare.item.gun.GunItem;
-import com.atsuishio.superbwarfare.item.gun.data.GunData;
-import com.atsuishio.superbwarfare.item.gun.data.value.AttachmentType;
-import com.atsuishio.superbwarfare.perk.Perk;
-import com.atsuishio.superbwarfare.perk.PerkHelper;
 import net.minecraft.client.Minecraft;
 import net.minecraft.client.model.HumanoidModel;
 import net.minecraft.client.player.LocalPlayer;
@@ -28,23 +26,18 @@ import net.minecraft.world.item.Rarity;
 import net.minecraft.world.level.Level;
 import net.minecraftforge.client.extensions.common.IClientItemExtensions;
 import org.jetbrains.annotations.NotNull;
-import software.bernie.geckolib.animatable.GeoItem;
-import software.bernie.geckolib.core.animatable.instance.AnimatableInstanceCache;
+import software.bernie.geckolib.constant.DataTickets;
 import software.bernie.geckolib.core.animation.AnimatableManager;
 import software.bernie.geckolib.core.animation.AnimationController;
 import software.bernie.geckolib.core.animation.AnimationState;
 import software.bernie.geckolib.core.animation.RawAnimation;
 import software.bernie.geckolib.core.object.PlayState;
-import software.bernie.geckolib.util.GeckoLibUtil;
 
 import javax.annotation.ParametersAreNonnullByDefault;
 import java.util.Set;
 import java.util.function.Consumer;
 
-public class VectorItem extends GunItem implements GeoItem {
-
-    private final AnimatableInstanceCache cache = GeckoLibUtil.createInstanceCache(this);
-    public static ItemDisplayContext transformType;
+public class VectorItem extends GunItem {
 
     public VectorItem() {
         super(new Item.Properties().stacksTo(1).rarity(Rarity.EPIC));
@@ -54,10 +47,13 @@ public class VectorItem extends GunItem implements GeoItem {
     public void initializeClient(@NotNull Consumer<IClientItemExtensions> consumer) {
         super.initializeClient(consumer);
         consumer.accept(new IClientItemExtensions() {
-            private final BlockEntityWithoutLevelRenderer renderer = new VectorItemRenderer();
+            private BlockEntityWithoutLevelRenderer renderer;
 
             @Override
             public BlockEntityWithoutLevelRenderer getCustomRenderer() {
+                if (renderer == null) {
+                    renderer = new VectorItemRenderer();
+                }
                 return renderer;
             }
 
@@ -68,42 +64,41 @@ public class VectorItem extends GunItem implements GeoItem {
         });
     }
 
-    public void getTransformType(ItemDisplayContext type) {
-        transformType = type;
-    }
-
     private PlayState idlePredicate(AnimationState<VectorItem> event) {
         LocalPlayer player = Minecraft.getInstance().player;
         if (player == null) return PlayState.STOP;
         ItemStack stack = player.getMainHandItem();
         if (!(stack.getItem() instanceof GunItem)) return PlayState.STOP;
+        if (event.getData(DataTickets.ITEM_RENDER_PERSPECTIVE) != ItemDisplayContext.FIRST_PERSON_RIGHT_HAND)
+            return event.setAndContinue(RawAnimation.begin().thenLoop("animation.vector.idle"));
+
         boolean drum = GunData.from(stack).attachment.get(AttachmentType.MAGAZINE) == 2;
 
         if (GunData.from(stack).reload.empty()) {
             if (drum) {
-                return event.setAndContinue(RawAnimation.begin().thenPlay("animation.vec.reload_empty_drum"));
+                return event.setAndContinue(RawAnimation.begin().thenPlay("animation.vector.reload_empty_drum"));
             } else {
-                return event.setAndContinue(RawAnimation.begin().thenPlay("animation.vec.reload_empty"));
+                return event.setAndContinue(RawAnimation.begin().thenPlay("animation.vector.reload_empty"));
             }
         }
 
         if (GunData.from(stack).reload.normal()) {
             if (drum) {
-                return event.setAndContinue(RawAnimation.begin().thenPlay("animation.vec.reload_normal_drum"));
+                return event.setAndContinue(RawAnimation.begin().thenPlay("animation.vector.reload_normal_drum"));
             } else {
-                return event.setAndContinue(RawAnimation.begin().thenPlay("animation.vec.reload_normal"));
+                return event.setAndContinue(RawAnimation.begin().thenPlay("animation.vector.reload_normal"));
             }
         }
 
         if (player.isSprinting() && player.onGround() && ClientEventHandler.cantSprint == 0 && ClientEventHandler.drawTime < 0.01) {
             if (ClientEventHandler.tacticalSprint) {
-                return event.setAndContinue(RawAnimation.begin().thenLoop("animation.vec.run_fast"));
+                return event.setAndContinue(RawAnimation.begin().thenLoop("animation.vector.run_fast"));
             } else {
-                return event.setAndContinue(RawAnimation.begin().thenLoop("animation.vec.run"));
+                return event.setAndContinue(RawAnimation.begin().thenLoop("animation.vector.run"));
             }
         }
 
-        return event.setAndContinue(RawAnimation.begin().thenLoop("animation.vec.idle"));
+        return event.setAndContinue(RawAnimation.begin().thenLoop("animation.vector.idle"));
     }
 
     private PlayState editPredicate(AnimationState<VectorItem> event) {
@@ -111,12 +106,14 @@ public class VectorItem extends GunItem implements GeoItem {
         if (player == null) return PlayState.STOP;
         ItemStack stack = player.getMainHandItem();
         if (!(stack.getItem() instanceof GunItem)) return PlayState.STOP;
+        if (event.getData(DataTickets.ITEM_RENDER_PERSPECTIVE) != ItemDisplayContext.FIRST_PERSON_RIGHT_HAND)
+            return event.setAndContinue(RawAnimation.begin().thenLoop("animation.vector.idle"));
 
         if (ClickHandler.isEditing) {
             return event.setAndContinue(RawAnimation.begin().thenPlay("animation.vector.edit"));
         }
 
-        return event.setAndContinue(RawAnimation.begin().thenLoop("animation.vec.idle"));
+        return event.setAndContinue(RawAnimation.begin().thenLoop("animation.vector.idle"));
     }
 
     @Override
@@ -125,11 +122,6 @@ public class VectorItem extends GunItem implements GeoItem {
         data.add(idleController);
         var editController = new AnimationController<>(this, "editController", 1, this::editPredicate);
         data.add(editController);
-    }
-
-    @Override
-    public AnimatableInstanceCache getAnimatableInstanceCache() {
-        return this.cache;
     }
 
     @Override
@@ -177,27 +169,12 @@ public class VectorItem extends GunItem implements GeoItem {
     }
 
     @Override
-    public boolean canApplyPerk(Perk perk) {
-        return PerkHelper.SMG_PERKS.test(perk) || PerkHelper.MAGAZINE_PERKS.test(perk);
-    }
-
-    @Override
-    public boolean isMagazineReload(ItemStack stack) {
-        return true;
-    }
-
-    @Override
     public boolean isOpenBolt(ItemStack stack) {
         return true;
     }
 
     @Override
     public boolean hasBulletInBarrel(ItemStack stack) {
-        return true;
-    }
-
-    @Override
-    public boolean isAutoWeapon(ItemStack stack) {
         return true;
     }
 
@@ -234,10 +211,5 @@ public class VectorItem extends GunItem implements GeoItem {
     @Override
     public boolean canEjectShell(ItemStack stack) {
         return true;
-    }
-
-    @Override
-    public int getAvailableFireModes() {
-        return FireMode.SEMI.flag + FireMode.BURST.flag + FireMode.AUTO.flag;
     }
 }

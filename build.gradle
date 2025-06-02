@@ -84,7 +84,12 @@ repositories {
         url = "https://maven.theillusivec4.top/"
     }
     maven {
-        url = 'https://dl.cloudsmith.io/public/geckolib3/geckolib/maven/'
+        name = 'GeckoLib'
+        url 'https://dl.cloudsmith.io/public/geckolib3/geckolib/maven/'
+        content {
+            includeGroupByRegex("software\\.bernie.*")
+            includeGroup("com.eliotlash.mclib")
+        }
     }
     maven {
         name = "Jared's maven"
@@ -109,6 +114,7 @@ dependencies {
     compileOnly fg.deobf("top.theillusivec4.curios:curios-forge:5.4.2+1.20.1:api")
 
     implementation fg.deobf('software.bernie.geckolib:geckolib-forge-1.20.1:4.4.6')
+    implementation("com.eliotlash.mclib:mclib:20")
 
     // 可选mod依赖
 
@@ -119,6 +125,10 @@ dependencies {
     // at runtime, use the full JEI jar for Forge
     runtimeOnly(fg.deobf("mezz.jei:jei-${minecraft_version}-forge:${jei_version}"))
 
+    // 帕秋莉手册
+    compileOnly fg.deobf("vazkii.patchouli:Patchouli:1.20.1-84-FORGE:api")
+    runtimeOnly fg.deobf("vazkii.patchouli:Patchouli:1.20.1-84-FORGE")
+
     // Cloth Config相关
     implementation fg.deobf("me.shedaniel.cloth:cloth-config-forge:${cloth_config_version}")
 
@@ -126,12 +136,16 @@ dependencies {
     implementation fg.deobf("curse.maven:jade-324717:${jade_version}")
 
     // 测试用mod
+    // 这俩是仅客户端mod
 //    implementation fg.deobf("curse.maven:oculus-581495:6020952")
 //    implementation fg.deobf("curse.maven:embeddium-908741:5681725")
-    implementation fg.deobf("curse.maven:timeless-and-classics-zero-1028108:6069384")
+    implementation fg.deobf("curse.maven:timeless-and-classics-zero-1028108:6518539")
     implementation fg.deobf("curse.maven:create-328085:6255513")
     implementation fg.deobf("curse.maven:mmmmmmmmmmmm-225738:6237015")
     implementation fg.deobf("curse.maven:selene-499980:6249659")
+    // better combat相关
+    implementation fg.deobf("curse.maven:better-combat-by-daedelus-639842:5625757")
+    implementation fg.deobf("curse.maven:playeranimator-658587:4587214")
 }
 
 mixin {
@@ -177,6 +191,10 @@ tasks.named('jar', Jar).configure {
 
     // This is the preferred method to reobfuscate your jar file
     finalizedBy 'reobfJar'
+}
+
+java {
+    withSourcesJar()
 }
 
 tasks.withType(JavaCompile).configureEach {

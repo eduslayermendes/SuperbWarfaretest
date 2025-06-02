@@ -346,7 +346,7 @@ public class C4Entity extends Entity implements GeoEntity, OwnableEntity {
             return false;
         } else {
             Entity entity = this.getOwner();
-            return entity == null || entity == pTarget || !entity.isPassengerOfSameVehicle(pTarget);
+            return entity == null || (entity == pTarget && this.tickCount > 2) || !entity.isPassengerOfSameVehicle(pTarget);
         }
     }
 
@@ -405,7 +405,7 @@ public class C4Entity extends Entity implements GeoEntity, OwnableEntity {
 
         CustomExplosion explosion = new CustomExplosion(level(), this,
                 ModDamageTypes.causeProjectileBoomDamage(level().registryAccess(), this, this.getOwner()), ExplosionConfig.C4_EXPLOSION_DAMAGE.get(),
-                pos.x, pos.y, pos.z, ExplosionConfig.C4_EXPLOSION_RADIUS.get(), ExplosionConfig.EXPLOSION_DESTROY.get() ? Explosion.BlockInteraction.DESTROY : Explosion.BlockInteraction.KEEP).setDamageMultiplier(1);
+                pos.x, pos.y, pos.z, ExplosionConfig.C4_EXPLOSION_RADIUS.get(), ExplosionConfig.EXPLOSION_DESTROY.get() ? Explosion.BlockInteraction.DESTROY : Explosion.BlockInteraction.KEEP, true).setDamageMultiplier(1);
         explosion.explode();
         net.minecraftforge.event.ForgeEventFactory.onExplosionStart(level(), explosion);
         ParticleTool.spawnHugeExplosionParticles(level(), position());

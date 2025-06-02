@@ -1,13 +1,18 @@
 package com.atsuishio.superbwarfare.client.overlay;
 
 import com.atsuishio.superbwarfare.Mod;
+import com.atsuishio.superbwarfare.client.RenderHelper;
+import com.atsuishio.superbwarfare.client.screens.DogTagEditorScreen;
+import com.atsuishio.superbwarfare.client.tooltip.ClientDogTagImageTooltip;
 import com.atsuishio.superbwarfare.compat.tacz.TACZGunEventHandler;
+import com.atsuishio.superbwarfare.config.client.DisplayConfig;
 import com.atsuishio.superbwarfare.config.client.KillMessageConfig;
 import com.atsuishio.superbwarfare.entity.vehicle.base.ArmedVehicleEntity;
 import com.atsuishio.superbwarfare.entity.vehicle.base.VehicleEntity;
 import com.atsuishio.superbwarfare.event.KillMessageHandler;
 import com.atsuishio.superbwarfare.init.ModDamageTypes;
 import com.atsuishio.superbwarfare.init.ModItems;
+import com.atsuishio.superbwarfare.item.DogTag;
 import com.atsuishio.superbwarfare.item.gun.GunItem;
 import com.atsuishio.superbwarfare.tools.DamageTypeTool;
 import com.atsuishio.superbwarfare.tools.PlayerKillRecord;
@@ -16,22 +21,23 @@ import com.mojang.blaze3d.systems.RenderSystem;
 import net.minecraft.client.Minecraft;
 import net.minecraft.client.gui.Font;
 import net.minecraft.client.gui.GuiGraphics;
+import net.minecraft.client.renderer.RenderType;
 import net.minecraft.core.registries.Registries;
 import net.minecraft.resources.ResourceKey;
 import net.minecraft.resources.ResourceLocation;
 import net.minecraft.world.damagesource.DamageTypes;
+import net.minecraft.world.entity.Entity;
+import net.minecraft.world.entity.LivingEntity;
 import net.minecraft.world.entity.player.Player;
 import net.minecraftforge.api.distmarker.Dist;
 import net.minecraftforge.api.distmarker.OnlyIn;
 import net.minecraftforge.client.gui.overlay.ForgeGui;
 import net.minecraftforge.client.gui.overlay.IGuiOverlay;
-import net.minecraftforge.fml.ModList;
 import org.jetbrains.annotations.Nullable;
 import top.theillusivec4.curios.api.CuriosApi;
 
+import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicReference;
-
-import static com.atsuishio.superbwarfare.client.RenderHelper.preciseBlit;
 
 @OnlyIn(Dist.CLIENT)
 public class KillMessageOverlay implements IGuiOverlay {
@@ -71,7 +77,34 @@ public class KillMessageOverlay implements IGuiOverlay {
             return;
         }
 
-        float totalTop = 5;
+        var pos = KillMessageConfig.KILL_MESSAGE_POSITION.get();
+        int posX = screenWidth;
+        float posY = KillMessageConfig.KILL_MESSAGE_MARGIN_Y.get();
+        boolean left = false;
+        boolean bottom = false;
+
+        switch (pos) {
+            case LEFT_TOP -> {
+                posX = KillMessageConfig.KILL_MESSAGE_MARGIN_X.get();
+                posY = KillMessageConfig.KILL_MESSAGE_MARGIN_Y.get();
+                left = true;
+            }
+            case RIGHT_TOP -> {
+                posX = screenWidth - KillMessageConfig.KILL_MESSAGE_MARGIN_X.get();
+                posY = KillMessageConfig.KILL_MESSAGE_MARGIN_Y.get();
+            }
+            case LEFT_BOTTOM -> {
+                posX = KillMessageConfig.KILL_MESSAGE_MARGIN_X.get();
+                posY = screenHeight - KillMessageConfig.KILL_MESSAGE_MARGIN_Y.get() - 10;
+                left = true;
+                bottom = true;
+            }
+            case RIGHT_BOTTOM -> {
+                posX = screenWidth - KillMessageConfig.KILL_MESSAGE_MARGIN_X.get();
+                posY = screenHeight - KillMessageConfig.KILL_MESSAGE_MARGIN_Y.get() - 10;
+                bottom = true;
+            }
+        }
 
         var arr = KillMessageHandler.QUEUE.toArray(new PlayerKillRecord[0]);
         var record = arr[0];
@@ -93,29 +126,17 @@ public class KillMessageOverlay implements IGuiOverlay {
         }
 
         for (PlayerKillRecord r : KillMessageHandler.QUEUE) {
-            totalTop = renderKillMessages(r, guiGraphics, partialTick, screenWidth, totalTop);
+            posY = renderKillMessages(r, guiGraphics, partialTick, posX, posY, left, bottom);
         }
     }
 
-    private static float renderKillMessages(PlayerKillRecord record, GuiGraphics guiGraphics, float partialTick, int width, float baseTop) {
+    private static float renderKillMessages(PlayerKillRecord record, GuiGraphics guiGraphics, float partialTick, int width, float baseTop, boolean left, boolean bottom) {
         float top = baseTop;
 
         Font font = Minecraft.getInstance().font;
 
-        AtomicReference<String> targetName = new AtomicReference<>(record.target.getDisplayName().getString());
-        if (record.target instanceof Player targetPlayer) {
-            CuriosApi.getCuriosInventory(targetPlayer).ifPresent(
-                    c -> c.findFirstCurio(ModItems.DOG_TAG.get()).ifPresent(
-                            s -> {
-                                if (s.stack().hasCustomHoverName()) {
-                                    targetName.set(s.stack().getHoverName().getString());
-                                }
-                            }
-                    )
-            );
-        }
-
-        int targetNameWidth = font.width(targetName.get());
+        String targetName = getEntityName(record.target);
+        int targetNameWidth = font.width(targetName);
 
         guiGraphics.pose().pushPose();
 
@@ -129,167 +150,164 @@ public class KillMessageOverlay implements IGuiOverlay {
 
         // 入场效果
         if (record.tick < 3) {
-            guiGraphics.pose().translate((3 - record.tick - partialTick) * 33, 0, 0);
+            guiGraphics.pose().translate((3 - record.tick - partialTick) * 33 * (left ? -1 : 1), 0, 0);
         }
 
         // 4s后开始消失
         if (record.tick >= 80) {
             int animationTickCount = record.fastRemove ? 2 : 20;
             float rate = (float) Math.pow((record.tick + partialTick - 80) / animationTickCount, 5);
-            guiGraphics.pose().translate(rate * 100, 0, 0);
+            guiGraphics.pose().translate(rate * 100 * (left ? -1 : 1), 0, 0);
             guiGraphics.setColor(1, 1, 1, 1 - rate);
-            baseTop += 10 * (1 - rate);
+            baseTop += 10 * (1 - rate) * (bottom ? -1 : 1);
         } else {
-            baseTop += 10;
+            baseTop += 10 * (bottom ? -1 : 1);
         }
 
-        // 击杀提示是右对齐的，这里从右向左渲染
+        // 击杀提示默认是右对齐的，这里从右向左渲染
+        if (!left) {
+            float currentPosX = width - targetNameWidth - 10f;
 
-        // 渲染被击杀者名称
-        guiGraphics.drawString(
-                Minecraft.getInstance().font,
-                targetName.get(),
-                width - targetNameWidth - 10f,
-                top,
-                record.target.getTeamColor(),
-                false
-        );
+            // 渲染被击杀者名称
+            guiGraphics.drawString(
+                    Minecraft.getInstance().font,
+                    targetName,
+                    currentPosX,
+                    top,
+                    record.target.getTeamColor(),
+                    false
+            );
 
-        // 第一个图标：爆头/爆炸/近战等图标
-        int damageTypeIconW = width - targetNameWidth - 28;
+            // 渲染狗牌图标
+            if (record.target instanceof LivingEntity living && shouldRenderDogTagIcon(living)) {
+                currentPosX -= 14;
+                renderDogTagIcon(guiGraphics, living, currentPosX, top - 0.5f);
+            }
 
-        ResourceLocation damageTypeIcon = getDamageTypeIcon(record);
+            // 渲染伤害类型图标
+            ResourceLocation damageTypeIcon = getDamageTypeIcon(record);
+            if (damageTypeIcon != null) {
+                currentPosX -= 18;
+                RenderHelper.preciseBlit(guiGraphics,
+                        damageTypeIcon,
+                        currentPosX,
+                        top - 2,
+                        0,
+                        0,
+                        12,
+                        12,
+                        12,
+                        12
+                );
+            }
 
-        if (damageTypeIcon != null) {
-            preciseBlit(guiGraphics,
-                    damageTypeIcon,
-                    damageTypeIconW,
-                    top - 2,
-                    0,
-                    0,
-                    12,
-                    12,
-                    12,
-                    12
+            // 渲染武器图标
+            ResourceLocation currentWeaponIcon = getWeaponIcon(record);
+            if (currentWeaponIcon != null) {
+                currentPosX -= 36;
+                RenderHelper.preciseBlit(guiGraphics,
+                        currentWeaponIcon,
+                        currentPosX,
+                        top,
+                        0,
+                        0,
+                        32,
+                        8,
+                        -32,
+                        8
+                );
+            }
+
+            // 渲染击杀者名称
+            String attackerName = getEntityName(record.attacker);
+            currentPosX -= font.width(attackerName) + 6;
+
+            guiGraphics.drawString(
+                    Minecraft.getInstance().font,
+                    attackerName,
+                    currentPosX,
+                    top,
+                    record.attacker.getTeamColor(),
+                    false
+            );
+
+            // 渲染狗牌图标
+            if (shouldRenderDogTagIcon(record.attacker)) {
+                currentPosX -= 14;
+                renderDogTagIcon(guiGraphics, record.attacker, currentPosX, top - 0.5f);
+            }
+        } else {
+            float currentPosX = width + 10f;
+
+            // 渲染狗牌图标
+            if (shouldRenderDogTagIcon(record.attacker)) {
+                renderDogTagIcon(guiGraphics, record.attacker, currentPosX, top - 0.5f);
+                currentPosX += 14;
+            }
+
+            // 渲染击杀者名称
+            String attackerName = getEntityName(record.attacker);
+            guiGraphics.drawString(
+                    Minecraft.getInstance().font,
+                    attackerName,
+                    currentPosX,
+                    top,
+                    record.attacker.getTeamColor(),
+                    false
+            );
+
+            currentPosX += font.width(attackerName) + 6;
+
+            // 渲染武器图标
+            ResourceLocation currentWeaponIcon = getWeaponIcon(record);
+            if (currentWeaponIcon != null) {
+                RenderHelper.preciseBlit(guiGraphics,
+                        currentWeaponIcon,
+                        currentPosX,
+                        top,
+                        0,
+                        0,
+                        32,
+                        8,
+                        -32,
+                        8
+                );
+                currentPosX += 36;
+            }
+
+            // 渲染伤害类型图标
+            ResourceLocation damageTypeIcon = getDamageTypeIcon(record);
+            if (damageTypeIcon != null) {
+                RenderHelper.preciseBlit(guiGraphics,
+                        damageTypeIcon,
+                        currentPosX,
+                        top - 2,
+                        0,
+                        0,
+                        12,
+                        12,
+                        12,
+                        12
+                );
+                currentPosX += 18;
+            }
+
+            // 渲染狗牌图标
+            if (record.target instanceof LivingEntity living && shouldRenderDogTagIcon(living)) {
+                renderDogTagIcon(guiGraphics, living, currentPosX, top - 0.5f);
+                currentPosX += 14;
+            }
+
+            // 渲染被击杀者名称
+            guiGraphics.drawString(
+                    Minecraft.getInstance().font,
+                    targetName,
+                    currentPosX,
+                    top,
+                    record.target.getTeamColor(),
+                    false
             );
         }
-
-        Player player = record.attacker;
-        boolean renderItem = false;
-        int itemIconW = damageTypeIcon != null ? width - targetNameWidth - 64 : width - targetNameWidth - 46;
-
-        if (player != null && player.getVehicle() instanceof VehicleEntity vehicleEntity) {
-            // 载具图标
-            if ((vehicleEntity instanceof ArmedVehicleEntity iArmedVehicle && iArmedVehicle.banHand(player)) || record.damageType == ModDamageTypes.VEHICLE_STRIKE) {
-                renderItem = true;
-
-                ResourceLocation resourceLocation = vehicleEntity.getVehicleIcon();
-
-                preciseBlit(guiGraphics,
-                        resourceLocation,
-                        itemIconW,
-                        top,
-                        0,
-                        0,
-                        32,
-                        8,
-                        -32,
-                        8
-                );
-            } else {
-                if (record.stack.getItem() instanceof GunItem gunItem) {
-                    renderItem = true;
-
-                    ResourceLocation resourceLocation = gunItem.getGunIcon();
-
-                    preciseBlit(guiGraphics,
-                            resourceLocation,
-                            itemIconW,
-                            top,
-                            0,
-                            0,
-                            32,
-                            8,
-                            -32,
-                            8
-                    );
-                } else if (ModList.get().isLoaded("tacz")
-                        && ModList.get().getModFileById("tacz") != null
-                        && ModList.get().getModFileById("tacz").versionString().startsWith("1.1.4")) {
-                    renderItem = TACZGunEventHandler.taczCompatRender(record.stack, guiGraphics, itemIconW, top);
-                }
-            }
-        } else {
-            // 如果是枪械击杀，则渲染枪械图标
-            if (record.stack.getItem() instanceof GunItem gunItem) {
-                renderItem = true;
-
-                ResourceLocation resourceLocation = gunItem.getGunIcon();
-
-                preciseBlit(guiGraphics,
-                        resourceLocation,
-                        itemIconW,
-                        top,
-                        0,
-                        0,
-                        32,
-                        8,
-                        -32,
-                        8
-                );
-            } else if (ModList.get().isLoaded("tacz")
-                    && ModList.get().getModFileById("tacz") != null
-                    && ModList.get().getModFileById("tacz").versionString().startsWith("1.1.")) {
-                renderItem = TACZGunEventHandler.taczCompatRender(record.stack, guiGraphics, itemIconW, top);
-            }
-
-            // TODO 如果是特殊武器击杀，则渲染对应图标
-            if (record.stack.getItem().getDescriptionId().equals("item.dreamaticvoyage.world_peace_staff")) {
-                renderItem = true;
-
-                preciseBlit(guiGraphics,
-                        WORLD_PEACE_STAFF,
-                        itemIconW,
-                        top,
-                        0,
-                        0,
-                        32,
-                        8,
-                        32,
-                        8
-                );
-            }
-        }
-
-        // 渲染击杀者名称
-        AtomicReference<String> attackerName = new AtomicReference<>(record.attacker.getDisplayName().getString());
-        CuriosApi.getCuriosInventory(record.attacker).ifPresent(
-                c -> c.findFirstCurio(ModItems.DOG_TAG.get()).ifPresent(
-                        s -> {
-                            if (s.stack().hasCustomHoverName()) {
-                                attackerName.set(s.stack().getHoverName().getString());
-                            }
-                        }
-                )
-        );
-
-        int attackerNameWidth = font.width(attackerName.get());
-        int nameW = width - targetNameWidth - 16 - attackerNameWidth;
-        if (renderItem) {
-            nameW -= 32;
-        }
-        if (damageTypeIcon != null) {
-            nameW -= 18;
-        }
-
-        guiGraphics.drawString(
-                Minecraft.getInstance().font,
-                attackerName.get(),
-                nameW,
-                top,
-                record.attacker.getTeamColor(),
-                false
-        );
 
         RenderSystem.defaultBlendFunc();
         RenderSystem.disableBlend();
@@ -311,6 +329,9 @@ public class KillMessageOverlay implements IGuiOverlay {
         } else {
             if (DamageTypeTool.isCompatGunDamage(record.damageType)) {
                 icon = null;
+                if (TACZGunEventHandler.hasMod() && !TACZGunEventHandler.compatCondition()) {
+                    icon = GENERIC;
+                }
             } else {
                 // 如果是其他伤害，则渲染对应图标
                 if (record.damageType == DamageTypes.EXPLOSION || record.damageType == DamageTypes.PLAYER_EXPLOSION || record.damageType == ModDamageTypes.PROJECTILE_BOOM || record.damageType == DamageTypes.FIREWORKS) {
@@ -341,5 +362,91 @@ public class KillMessageOverlay implements IGuiOverlay {
             }
         }
         return icon;
+    }
+
+    public static String getEntityName(Entity entity) {
+        AtomicReference<String> targetName = new AtomicReference<>(entity.getDisplayName().getString());
+        if (!DisplayConfig.DOG_TAG_NAME_VISIBLE.get()) return targetName.get();
+        if (entity instanceof Player targetPlayer) {
+            CuriosApi.getCuriosInventory(targetPlayer).ifPresent(
+                    c -> c.findFirstCurio(ModItems.DOG_TAG.get()).ifPresent(
+                            s -> {
+                                if (s.stack().hasCustomHoverName()) {
+                                    targetName.set(s.stack().getHoverName().getString());
+                                }
+                            }
+                    )
+            );
+        }
+        return targetName.get();
+    }
+
+    @Nullable
+    public static ResourceLocation getWeaponIcon(PlayerKillRecord record) {
+        Player player = record.attacker;
+        if (player != null && player.getVehicle() instanceof VehicleEntity vehicleEntity) {
+            // 载具图标
+            if ((vehicleEntity instanceof ArmedVehicleEntity iArmedVehicle && iArmedVehicle.banHand(player)) || record.damageType == ModDamageTypes.VEHICLE_STRIKE) {
+                return vehicleEntity.getVehicleIcon();
+            } else {
+                if (record.stack.getItem() instanceof GunItem gunItem) {
+                    return gunItem.getGunIcon();
+                } else if (TACZGunEventHandler.compatCondition()) {
+                    return TACZGunEventHandler.getTaczCompatIcon(record.stack);
+                }
+            }
+        } else {
+            // 如果是枪械击杀，则渲染枪械图标
+            if (record.stack.getItem() instanceof GunItem gunItem) {
+                return gunItem.getGunIcon();
+            } else if (TACZGunEventHandler.compatCondition()) {
+                return TACZGunEventHandler.getTaczCompatIcon(record.stack);
+            }
+
+            // TODO 如果是特殊武器击杀，则渲染对应图标
+            if (record.stack.getItem().getDescriptionId().equals("item.dreamaticvoyage.world_peace_staff")) {
+                return WORLD_PEACE_STAFF;
+            }
+        }
+        return null;
+    }
+
+    public static boolean shouldRenderDogTagIcon(LivingEntity living) {
+        AtomicBoolean flag = new AtomicBoolean(false);
+        CuriosApi.getCuriosInventory(living).ifPresent(
+                c -> c.findFirstCurio(ModItems.DOG_TAG.get()).ifPresent(
+                        s -> {
+                            var stack = s.stack();
+                            if (ClientDogTagImageTooltip.shouldRenderIcon(stack)) {
+                                flag.set(true);
+                            }
+                        }
+                )
+        );
+        return flag.get() && DisplayConfig.DOG_TAG_ICON_VISIBLE.get();
+    }
+
+    public static void renderDogTagIcon(GuiGraphics guiGraphics, LivingEntity living, float x, float y) {
+        CuriosApi.getCuriosInventory(living).ifPresent(
+                c -> c.findFirstCurio(ModItems.DOG_TAG.get()).ifPresent(
+                        s -> {
+                            var stack = s.stack();
+                            short[][] icon = DogTag.getColors(stack);
+
+                            guiGraphics.pose().pushPose();
+
+                            for (int i = 0; i < 16; i++) {
+                                for (int j = 0; j < 16; j++) {
+                                    if (icon[i][j] == -1) continue;
+                                    RenderHelper.fill(guiGraphics, RenderType.gui(),
+                                            x + i * 0.6f, y + j * 0.6f, x + (i + 1) * 0.6f, y + (j + 1) * 0.6f,
+                                            0, DogTagEditorScreen.getColorByNum(icon[i][j]));
+                                }
+                            }
+
+                            guiGraphics.pose().popPose();
+                        }
+                )
+        );
     }
 }

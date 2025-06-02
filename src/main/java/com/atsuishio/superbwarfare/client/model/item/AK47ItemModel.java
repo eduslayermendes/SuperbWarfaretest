@@ -3,10 +3,9 @@ package com.atsuishio.superbwarfare.client.model.item;
 import com.atsuishio.superbwarfare.Mod;
 import com.atsuishio.superbwarfare.client.AnimationHelper;
 import com.atsuishio.superbwarfare.client.overlay.CrossHairOverlay;
+import com.atsuishio.superbwarfare.data.gun.GunData;
+import com.atsuishio.superbwarfare.data.gun.value.AttachmentType;
 import com.atsuishio.superbwarfare.event.ClientEventHandler;
-import com.atsuishio.superbwarfare.item.gun.GunItem;
-import com.atsuishio.superbwarfare.item.gun.data.GunData;
-import com.atsuishio.superbwarfare.item.gun.data.value.AttachmentType;
 import com.atsuishio.superbwarfare.item.gun.rifle.AK47Item;
 import net.minecraft.client.Minecraft;
 import net.minecraft.resources.ResourceLocation;
@@ -15,11 +14,10 @@ import net.minecraft.world.entity.player.Player;
 import net.minecraft.world.item.ItemStack;
 import software.bernie.geckolib.core.animatable.model.CoreGeoBone;
 import software.bernie.geckolib.core.animation.AnimationState;
-import software.bernie.geckolib.model.GeoModel;
 
 import static com.atsuishio.superbwarfare.event.ClientEventHandler.isProne;
 
-public class AK47ItemModel extends GeoModel<AK47Item> {
+public class AK47ItemModel extends CustomGunModel<AK47Item> {
 
     public static float fireRotY = 0f;
     public static float fireRotZ = 0f;
@@ -27,7 +25,7 @@ public class AK47ItemModel extends GeoModel<AK47Item> {
 
     @Override
     public ResourceLocation getAnimationResource(AK47Item animatable) {
-        return Mod.loc("animations/ak.animation.json");
+        return Mod.loc("animations/ak_47.animation.json");
     }
 
     @Override
@@ -37,22 +35,21 @@ public class AK47ItemModel extends GeoModel<AK47Item> {
 
     @Override
     public ResourceLocation getTextureResource(AK47Item animatable) {
-        return Mod.loc("textures/item/ak47.png");
+        return Mod.loc("textures/item/ak_47.png");
     }
 
     @Override
-    public void setCustomAnimations(AK47Item animatable, long instanceId, AnimationState animationState) {
+    public void setCustomAnimations(AK47Item animatable, long instanceId, AnimationState<AK47Item> animationState) {
+        Player player = Minecraft.getInstance().player;
+        if (player == null) return;
+        ItemStack stack = player.getMainHandItem();
+        if (shouldCancelRender(stack, animationState)) return;
+
         CoreGeoBone gun = getAnimationProcessor().getBone("bone");
         CoreGeoBone scope = getAnimationProcessor().getBone("Scope1");
         CoreGeoBone scope2 = getAnimationProcessor().getBone("Scope2");
         CoreGeoBone scope3 = getAnimationProcessor().getBone("Scope3");
-        CoreGeoBone cross3 = getAnimationProcessor().getBone("Cross3");
         CoreGeoBone shuan = getAnimationProcessor().getBone("shuan");
-
-        Player player = Minecraft.getInstance().player;
-        if (player == null) return;
-        ItemStack stack = player.getMainHandItem();
-        if (!(stack.getItem() instanceof GunItem)) return;
 
         float times = 0.6f * (float) Math.min(Minecraft.getInstance().getDeltaFrameTime(), 0.8);
         double zt = ClientEventHandler.zoomTime;
@@ -87,13 +84,13 @@ public class AK47ItemModel extends GeoModel<AK47Item> {
             case 0 -> 0.55f;
             case 1 -> 0.2f;
             case 2 -> 0.87f;
-            case 3 -> 0.78f;
+            case 3 -> 0.84f;
             default -> 0f;
         };
         float posZ = switch (type) {
             case 0, 1 -> 2.8f;
             case 2 -> 4.74f;
-            case 3 -> 3.9f;
+            case 3 -> 4.5f;
             default -> 0f;
         };
 
@@ -139,9 +136,6 @@ public class AK47ItemModel extends GeoModel<AK47Item> {
 
         shuan.setPosZ(2.4f * (float) fp);
 
-        cross3.setRotZ(0.01f * (float) (ClientEventHandler.recoilHorizon * fp));
-        cross3.setPosY(-0.23f * (float) (fp + 2.3 * fr));
-
         CoreGeoBone l = getAnimationProcessor().getBone("l");
         CoreGeoBone r = getAnimationProcessor().getBone("r");
         rotXBipod = Mth.lerp(1.5f * times, rotXBipod, isProne(player) ? -90 : 0);
@@ -157,7 +151,7 @@ public class AK47ItemModel extends GeoModel<AK47Item> {
         float numP = (float) (1 - 0.92 * zt);
 
         AnimationHelper.handleReloadShakeAnimation(stack, main, camera, numR, numP);
-        ClientEventHandler.shake(Mth.RAD_TO_DEG * camera.getRotX(), Mth.RAD_TO_DEG * camera.getRotY(), Mth.RAD_TO_DEG * camera.getRotZ());
+        ClientEventHandler.handleReloadShake(Mth.RAD_TO_DEG * camera.getRotX(), Mth.RAD_TO_DEG * camera.getRotY(), Mth.RAD_TO_DEG * camera.getRotZ());
         AnimationHelper.handleShellsAnimation(getAnimationProcessor(), 1f, 0.35f);
     }
 }

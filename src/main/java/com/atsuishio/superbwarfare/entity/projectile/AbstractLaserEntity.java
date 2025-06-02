@@ -81,10 +81,7 @@ public abstract class AbstractLaserEntity extends Entity implements TraceableEnt
         }
     }
 
-    @Override
-    public Packet<ClientGamePacketListener> getAddEntityPacket() {
-        return NetworkHooks.getEntitySpawningPacket(this);
-    }
+   
 
     @Override
     protected void readAdditionalSaveData(CompoundTag pCompound) {
@@ -246,6 +243,11 @@ public abstract class AbstractLaserEntity extends Entity implements TraceableEnt
 
     protected float getBaseScale() {
         return 0.5F;
+    }
+
+    @Override
+    public Packet<ClientGamePacketListener> getAddEntityPacket() {
+        return NetworkHooks.getEntitySpawningPacket(this);
     }
 
     public static class CustomHitResult {

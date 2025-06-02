@@ -2,22 +2,26 @@ package com.atsuishio.superbwarfare.network;
 
 import com.atsuishio.superbwarfare.client.overlay.CrossHairOverlay;
 import com.atsuishio.superbwarfare.client.overlay.DroneHudOverlay;
+import com.atsuishio.superbwarfare.client.screens.DogTagEditorScreen;
 import com.atsuishio.superbwarfare.client.screens.FuMO25ScreenHelper;
 import com.atsuishio.superbwarfare.config.client.KillMessageConfig;
+import com.atsuishio.superbwarfare.config.server.MiscConfig;
 import com.atsuishio.superbwarfare.event.ClientEventHandler;
 import com.atsuishio.superbwarfare.event.KillMessageHandler;
-import com.atsuishio.superbwarfare.item.gun.data.DefaultGunData;
+import com.atsuishio.superbwarfare.menu.DogTagEditorMenu;
 import com.atsuishio.superbwarfare.menu.EnergyMenu;
-import com.atsuishio.superbwarfare.network.message.receive.*;
-import com.atsuishio.superbwarfare.tools.GunsTool;
+import com.atsuishio.superbwarfare.network.message.receive.ClientIndicatorMessage;
+import com.atsuishio.superbwarfare.network.message.receive.ClientMotionSyncMessage;
+import com.atsuishio.superbwarfare.network.message.receive.ContainerDataMessage;
+import com.atsuishio.superbwarfare.network.message.receive.RadarMenuOpenMessage;
 import com.atsuishio.superbwarfare.tools.PlayerKillRecord;
-import com.google.gson.Gson;
 import net.minecraft.client.CameraType;
 import net.minecraft.client.Minecraft;
 import net.minecraft.resources.ResourceKey;
 import net.minecraft.world.damagesource.DamageType;
 import net.minecraft.world.entity.Entity;
 import net.minecraft.world.entity.player.Player;
+import net.minecraft.world.item.ItemStack;
 import net.minecraftforge.fml.LogicalSide;
 import net.minecraftforge.network.NetworkEvent;
 
@@ -26,17 +30,6 @@ import java.util.Objects;
 import java.util.function.Supplier;
 
 public class ClientPacketHandler {
-
-    private static final Gson GSON = new Gson();
-
-    public static void handleGunsDataMessage(GunsDataMessage message, Supplier<NetworkEvent.Context> ctx) {
-        if (ctx.get().getDirection().getReceptionSide() == LogicalSide.CLIENT) {
-            GunsTool.gunsData.clear();
-            for (var entry : message.gunsData.entrySet()) {
-                GunsTool.gunsData.put(entry.getKey(), GSON.fromJson(entry.getValue(), DefaultGunData.class));
-            }
-        }
-    }
 
     public static void handlePlayerKillMessage(Player attacker, Entity target, boolean headshot, ResourceKey<DamageType> damageType, Supplier<NetworkEvent.Context> ctx) {
         if (ctx.get().getDirection().getReceptionSide() == LogicalSide.CLIENT) {
@@ -100,6 +93,25 @@ public class ClientPacketHandler {
             Entity entity = level.getEntity(message.id);
             if (entity != null) {
                 entity.lerpMotion(message.x, message.y, message.z);
+            }
+        }
+    }
+
+    public static void handleClientTacticalSprintSync(boolean flag, Supplier<NetworkEvent.Context> ctx) {
+        if (ctx.get().getDirection().getReceptionSide() == LogicalSide.CLIENT) {
+            MiscConfig.ALLOW_TACTICAL_SPRINT.set(flag);
+            MiscConfig.ALLOW_TACTICAL_SPRINT.save();
+        }
+    }
+
+    public static void handleDogTagEditorMessage(int containerId, ItemStack stack, Supplier<NetworkEvent.Context> ctx) {
+        if (ctx.get().getDirection().getReceptionSide() == LogicalSide.CLIENT) {
+            Minecraft mc = Minecraft.getInstance();
+            if (mc.player != null && mc.player.containerMenu.containerId == containerId) {
+                ((DogTagEditorMenu) mc.player.containerMenu).stack = stack;
+                if (mc.screen instanceof DogTagEditorScreen dogTagEditorScreen) {
+                    dogTagEditorScreen.stack = stack;
+                }
             }
         }
     }

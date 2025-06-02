@@ -1,11 +1,11 @@
 package com.atsuishio.superbwarfare.network.message.send;
 
+import com.atsuishio.superbwarfare.data.gun.FireMode;
+import com.atsuishio.superbwarfare.data.gun.GunData;
 import com.atsuishio.superbwarfare.init.ModItems;
 import com.atsuishio.superbwarfare.init.ModSounds;
 import com.atsuishio.superbwarfare.item.gun.GunItem;
-import com.atsuishio.superbwarfare.item.gun.data.GunData;
 import com.atsuishio.superbwarfare.tools.SoundTool;
-import net.minecraft.nbt.CompoundTag;
 import net.minecraft.network.FriendlyByteBuf;
 import net.minecraft.server.level.ServerPlayer;
 import net.minecraft.world.entity.player.Player;
@@ -44,49 +44,47 @@ public class FireModeMessage {
 
     public static void changeFireMode(Player player) {
         ItemStack stack = player.getMainHandItem();
-        if (stack.getItem() instanceof GunItem gunItem) {
+        if (stack.getItem() instanceof GunItem) {
             var data = GunData.from(stack);
-            int fireMode = data.fireMode.get();
+            var tag = data.tag();
+            var fireMode = data.fireMode.get();
 
-            CompoundTag tag = stack.getOrCreateTag();
+            var mode = data.getAvailableFireModes();
 
-            int mode = gunItem.getAvailableFireModes();
-            mode &= 0b111;
-
-            if (fireMode == 0) {
-                if ((mode & 2) != 0) {
-                    data.fireMode.set(1);
+            if (fireMode == FireMode.SEMI) {
+                if (mode.contains(FireMode.BURST)) {
+                    data.fireMode.set(FireMode.BURST);
                     playChangeModeSound(player);
                     return;
                 }
-                if ((mode & 4) != 0) {
-                    data.fireMode.set(2);
-                    playChangeModeSound(player);
-                    return;
-                }
-            }
-
-            if (fireMode == 1) {
-                if ((mode & 4) != 0) {
-                    data.fireMode.set(2);
-                    playChangeModeSound(player);
-                    return;
-                }
-                if ((mode & 1) != 0) {
-                    data.fireMode.set(0);
+                if (mode.contains(FireMode.AUTO)) {
+                    data.fireMode.set(FireMode.AUTO);
                     playChangeModeSound(player);
                     return;
                 }
             }
 
-            if (fireMode == 2) {
-                if ((mode & 1) != 0) {
-                    data.fireMode.set(0);
+            if (fireMode == FireMode.BURST) {
+                if (mode.contains(FireMode.AUTO)) {
+                    data.fireMode.set(FireMode.AUTO);
                     playChangeModeSound(player);
                     return;
                 }
-                if ((mode & 2) != 0) {
-                    data.fireMode.set(1);
+                if (mode.contains(FireMode.SEMI)) {
+                    data.fireMode.set(FireMode.SEMI);
+                    playChangeModeSound(player);
+                    return;
+                }
+            }
+
+            if (fireMode == FireMode.AUTO) {
+                if (mode.contains(FireMode.SEMI)) {
+                    data.fireMode.set(FireMode.SEMI);
+                    playChangeModeSound(player);
+                    return;
+                }
+                if (mode.contains(FireMode.BURST)) {
+                    data.fireMode.set(FireMode.BURST);
                     playChangeModeSound(player);
                     return;
                 }
@@ -116,13 +114,6 @@ public class FireModeMessage {
                 tag.putBoolean("TopMode", !tag.getBoolean("TopMode"));
                 if (player instanceof ServerPlayer serverPlayer) {
                     SoundTool.playLocalSound(serverPlayer, ModSounds.CANNON_ZOOM_OUT.get());
-                }
-            }
-
-            if (stack.getItem() == ModItems.TRACHELIUM.get() && !GunData.from(stack).bolt.needed.get()) {
-                data.DA.set(!data.DA.get());
-                if (!tag.getBoolean("canImmediatelyShoot")) {
-                    data.bolt.needed.set(true);
                 }
             }
         }

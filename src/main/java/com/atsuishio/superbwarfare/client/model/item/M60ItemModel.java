@@ -3,9 +3,8 @@ package com.atsuishio.superbwarfare.client.model.item;
 import com.atsuishio.superbwarfare.Mod;
 import com.atsuishio.superbwarfare.client.AnimationHelper;
 import com.atsuishio.superbwarfare.client.overlay.CrossHairOverlay;
+import com.atsuishio.superbwarfare.data.gun.GunData;
 import com.atsuishio.superbwarfare.event.ClientEventHandler;
-import com.atsuishio.superbwarfare.item.gun.GunItem;
-import com.atsuishio.superbwarfare.item.gun.data.GunData;
 import com.atsuishio.superbwarfare.item.gun.machinegun.M60Item;
 import net.minecraft.client.Minecraft;
 import net.minecraft.resources.ResourceLocation;
@@ -14,29 +13,33 @@ import net.minecraft.world.entity.player.Player;
 import net.minecraft.world.item.ItemStack;
 import software.bernie.geckolib.core.animatable.model.CoreGeoBone;
 import software.bernie.geckolib.core.animation.AnimationState;
-import software.bernie.geckolib.model.GeoModel;
 
 import static com.atsuishio.superbwarfare.event.ClientEventHandler.isProne;
 
-public class M60ItemModel extends GeoModel<M60Item> {
+public class M60ItemModel extends CustomGunModel<M60Item> {
 
     @Override
     public ResourceLocation getAnimationResource(M60Item animatable) {
-        return Mod.loc("animations/m60.animation.json");
+        return Mod.loc("animations/m_60.animation.json");
     }
 
     @Override
     public ResourceLocation getModelResource(M60Item animatable) {
-        return Mod.loc("geo/m60.geo.json");
+        return Mod.loc("geo/m_60.geo.json");
     }
 
     @Override
     public ResourceLocation getTextureResource(M60Item animatable) {
-        return Mod.loc("textures/item/m60.png");
+        return Mod.loc("textures/item/m_60.png");
     }
 
     @Override
-    public void setCustomAnimations(M60Item animatable, long instanceId, AnimationState animationState) {
+    public void setCustomAnimations(M60Item animatable, long instanceId, AnimationState<M60Item> animationState) {
+        Player player = Minecraft.getInstance().player;
+        if (player == null) return;
+        ItemStack stack = player.getMainHandItem();
+        if (shouldCancelRender(stack, animationState)) return;
+
         CoreGeoBone gun = getAnimationProcessor().getBone("bone");
         CoreGeoBone shen = getAnimationProcessor().getBone("shen");
         CoreGeoBone tiba = getAnimationProcessor().getBone("tiba");
@@ -47,11 +50,6 @@ public class M60ItemModel extends GeoModel<M60Item> {
         CoreGeoBone b5 = getAnimationProcessor().getBone("b5");
         CoreGeoBone l = getAnimationProcessor().getBone("l");
         CoreGeoBone r = getAnimationProcessor().getBone("r");
-
-        Player player = Minecraft.getInstance().player;
-        if (player == null) return;
-        ItemStack stack = player.getMainHandItem();
-        if (!(stack.getItem() instanceof GunItem)) return;
 
         if (isProne(player)) {
             l.setRotX(1.5f);
@@ -155,6 +153,6 @@ public class M60ItemModel extends GeoModel<M60Item> {
             shell.setScaleY(1);
             shell.setScaleZ(1);
         }
-        ClientEventHandler.shake(Mth.RAD_TO_DEG * camera.getRotX(), Mth.RAD_TO_DEG * camera.getRotY(), Mth.RAD_TO_DEG * camera.getRotZ());
+        ClientEventHandler.handleReloadShake(Mth.RAD_TO_DEG * camera.getRotX(), Mth.RAD_TO_DEG * camera.getRotY(), Mth.RAD_TO_DEG * camera.getRotZ());
     }
 }

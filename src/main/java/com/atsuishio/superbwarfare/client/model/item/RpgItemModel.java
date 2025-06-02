@@ -3,9 +3,8 @@ package com.atsuishio.superbwarfare.client.model.item;
 import com.atsuishio.superbwarfare.Mod;
 import com.atsuishio.superbwarfare.client.AnimationHelper;
 import com.atsuishio.superbwarfare.client.overlay.CrossHairOverlay;
+import com.atsuishio.superbwarfare.data.gun.GunData;
 import com.atsuishio.superbwarfare.event.ClientEventHandler;
-import com.atsuishio.superbwarfare.item.gun.GunItem;
-import com.atsuishio.superbwarfare.item.gun.data.GunData;
 import com.atsuishio.superbwarfare.item.gun.launcher.RpgItem;
 import net.minecraft.client.Minecraft;
 import net.minecraft.resources.ResourceLocation;
@@ -14,9 +13,8 @@ import net.minecraft.world.entity.player.Player;
 import net.minecraft.world.item.ItemStack;
 import software.bernie.geckolib.core.animatable.model.CoreGeoBone;
 import software.bernie.geckolib.core.animation.AnimationState;
-import software.bernie.geckolib.model.GeoModel;
 
-public class RpgItemModel extends GeoModel<RpgItem> {
+public class RpgItemModel extends CustomGunModel<RpgItem> {
 
     @Override
     public ResourceLocation getAnimationResource(RpgItem animatable) {
@@ -30,19 +28,19 @@ public class RpgItemModel extends GeoModel<RpgItem> {
 
     @Override
     public ResourceLocation getTextureResource(RpgItem animatable) {
-        return Mod.loc("textures/item/rpg7.png");
+        return Mod.loc("textures/item/rpg.png");
     }
 
     @Override
-    public void setCustomAnimations(RpgItem animatable, long instanceId, AnimationState animationState) {
-        CoreGeoBone gun = getAnimationProcessor().getBone("bone");
-        CoreGeoBone shen = getAnimationProcessor().getBone("rpg");
-        CoreGeoBone hammer = getAnimationProcessor().getBone("hammer");
-
+    public void setCustomAnimations(RpgItem animatable, long instanceId, AnimationState<RpgItem> animationState) {
         Player player = Minecraft.getInstance().player;
         if (player == null) return;
         ItemStack stack = player.getMainHandItem();
-        if (!(stack.getItem() instanceof GunItem)) return;
+        if (shouldCancelRender(stack, animationState)) return;
+
+        CoreGeoBone gun = getAnimationProcessor().getBone("bone");
+        CoreGeoBone shen = getAnimationProcessor().getBone("rpg");
+        CoreGeoBone hammer = getAnimationProcessor().getBone("hammer");
 
         if (GunData.from(stack).closeHammer.get()) {
             hammer.setRotX(-90 * Mth.DEG_TO_RAD);
@@ -88,6 +86,6 @@ public class RpgItemModel extends GeoModel<RpgItem> {
         float numP = (float) (1 - 0.78 * zt);
 
         AnimationHelper.handleReloadShakeAnimation(stack, main, camera, numR, numP);
-        ClientEventHandler.shake(Mth.RAD_TO_DEG * camera.getRotX(), Mth.RAD_TO_DEG * camera.getRotY(), Mth.RAD_TO_DEG * camera.getRotZ());
+        ClientEventHandler.handleReloadShake(Mth.RAD_TO_DEG * camera.getRotX(), Mth.RAD_TO_DEG * camera.getRotY(), Mth.RAD_TO_DEG * camera.getRotZ());
     }
 }

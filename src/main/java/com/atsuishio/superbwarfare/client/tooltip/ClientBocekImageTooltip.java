@@ -1,8 +1,7 @@
 package com.atsuishio.superbwarfare.client.tooltip;
 
-import com.atsuishio.superbwarfare.client.TooltipTool;
 import com.atsuishio.superbwarfare.client.tooltip.component.GunImageComponent;
-import com.atsuishio.superbwarfare.item.gun.data.GunData;
+import com.atsuishio.superbwarfare.data.gun.GunData;
 import com.atsuishio.superbwarfare.perk.AmmoPerk;
 import com.atsuishio.superbwarfare.perk.Perk;
 import com.atsuishio.superbwarfare.tools.FormatTool;
@@ -19,26 +18,36 @@ public class ClientBocekImageTooltip extends ClientGunImageTooltip {
     protected Component getDamageComponent() {
         boolean slug = false;
 
-
         var data = GunData.from(stack);
         var perk = data.perk.get(Perk.Type.AMMO);
         if (perk instanceof AmmoPerk ammoPerk && ammoPerk.slug) {
             slug = true;
         }
 
-        double total = getGunData().damage() * TooltipTool.perkDamage(stack);
+        double damage = getGunData().damage();
 
         if (slug) {
-            return Component.translatable("des.superbwarfare.guns.damage").withStyle(ChatFormatting.GRAY)
-                    .append(Component.literal("").withStyle(ChatFormatting.RESET))
-                    .append(Component.literal(FormatTool.format1D(total) + (TooltipTool.heBullet(stack) ? " + " +
-                            FormatTool.format1D(0.8 * total * (1 + 0.1 * TooltipTool.heBulletLevel(stack))) : "")).withStyle(ChatFormatting.GREEN));
+            return super.getDamageComponent();
         } else {
+            double shotDamage = damage * 0.1;
+            double extraDamage = -1;
+            for (var type : Perk.Type.values()) {
+                var instance = getGunData().perk.getInstance(type);
+                if (instance != null) {
+                    shotDamage = instance.perk().getDisplayDamage(shotDamage, getGunData(), instance);
+                    if (instance.perk().getExtraDisplayDamage(shotDamage, getGunData(), instance) >= 0) {
+                        extraDamage = instance.perk().getExtraDisplayDamage(shotDamage, getGunData(), instance);
+                    }
+                }
+            }
+
             return Component.translatable("des.superbwarfare.guns.damage").withStyle(ChatFormatting.GRAY)
-                    .append(Component.literal("").withStyle(ChatFormatting.RESET))
-                    .append(Component.literal(FormatTool.format1D(total * 0.1, " * 10")).withStyle(ChatFormatting.GREEN))
+                    .append(Component.empty().withStyle(ChatFormatting.RESET))
+                    .append(Component.literal(extraDamage >= 0 ? ("(" + FormatTool.format1D(shotDamage) + " + " + FormatTool.format1D(extraDamage) + ") * 10")
+                                    : FormatTool.format1D(shotDamage, " * 10"))
+                            .withStyle(ChatFormatting.GREEN))
                     .append(Component.literal(" / ").withStyle(ChatFormatting.RESET))
-                    .append(Component.literal(FormatTool.format1D(total)).withStyle(ChatFormatting.GREEN));
+                    .append(Component.literal(FormatTool.format1D(shotDamage)).withStyle(ChatFormatting.GREEN));
         }
     }
 }

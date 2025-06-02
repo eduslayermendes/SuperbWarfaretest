@@ -2,13 +2,11 @@ package com.atsuishio.superbwarfare.item.gun.rifle;
 
 import com.atsuishio.superbwarfare.Mod;
 import com.atsuishio.superbwarfare.client.PoseTool;
-import com.atsuishio.superbwarfare.client.renderer.item.SksItemRenderer;
+import com.atsuishio.superbwarfare.client.renderer.gun.SksItemRenderer;
+import com.atsuishio.superbwarfare.data.gun.GunData;
 import com.atsuishio.superbwarfare.event.ClientEventHandler;
 import com.atsuishio.superbwarfare.init.ModSounds;
 import com.atsuishio.superbwarfare.item.gun.GunItem;
-import com.atsuishio.superbwarfare.item.gun.data.GunData;
-import com.atsuishio.superbwarfare.perk.Perk;
-import com.atsuishio.superbwarfare.perk.PerkHelper;
 import net.minecraft.client.Minecraft;
 import net.minecraft.client.model.HumanoidModel;
 import net.minecraft.client.player.LocalPlayer;
@@ -24,42 +22,40 @@ import net.minecraft.world.item.ItemStack;
 import net.minecraft.world.item.Rarity;
 import net.minecraft.world.level.Level;
 import net.minecraftforge.client.extensions.common.IClientItemExtensions;
-import software.bernie.geckolib.animatable.GeoItem;
-import software.bernie.geckolib.core.animatable.instance.AnimatableInstanceCache;
+import software.bernie.geckolib.constant.DataTickets;
 import software.bernie.geckolib.core.animation.AnimatableManager;
 import software.bernie.geckolib.core.animation.AnimationController;
 import software.bernie.geckolib.core.animation.AnimationState;
 import software.bernie.geckolib.core.animation.RawAnimation;
 import software.bernie.geckolib.core.object.PlayState;
-import software.bernie.geckolib.util.GeckoLibUtil;
 
 import javax.annotation.ParametersAreNonnullByDefault;
 import java.util.Map;
 import java.util.Set;
 import java.util.function.Consumer;
 
-public class SksItem extends GunItem implements GeoItem {
-
-    private final AnimatableInstanceCache cache = GeckoLibUtil.createInstanceCache(this);
-    public static ItemDisplayContext transformType;
-
-    @Override
-    public Set<SoundEvent> getReloadSound() {
-        return Set.of(ModSounds.SKS_RELOAD_EMPTY.get(), ModSounds.SKS_RELOAD_NORMAL.get());
-    }
+public class SksItem extends GunItem {
 
     public SksItem() {
         super(new Item.Properties().stacksTo(1).rarity(Rarity.RARE));
     }
 
     @Override
+    public Set<SoundEvent> getReloadSound() {
+        return Set.of(ModSounds.SKS_RELOAD_EMPTY.get(), ModSounds.SKS_RELOAD_NORMAL.get());
+    }
+
+    @Override
     public void initializeClient(Consumer<IClientItemExtensions> consumer) {
         super.initializeClient(consumer);
         consumer.accept(new IClientItemExtensions() {
-            private final BlockEntityWithoutLevelRenderer renderer = new SksItemRenderer();
+            private BlockEntityWithoutLevelRenderer renderer;
 
             @Override
             public BlockEntityWithoutLevelRenderer getCustomRenderer() {
+                if (renderer == null) {
+                    renderer = new SksItemRenderer();
+                }
                 return renderer;
             }
 
@@ -70,15 +66,13 @@ public class SksItem extends GunItem implements GeoItem {
         });
     }
 
-    public void getTransformType(ItemDisplayContext type) {
-        transformType = type;
-    }
-
     private PlayState idlePredicate(AnimationState<SksItem> event) {
         LocalPlayer player = Minecraft.getInstance().player;
         if (player == null) return PlayState.STOP;
         ItemStack stack = player.getMainHandItem();
         if (!(stack.getItem() instanceof GunItem)) return PlayState.STOP;
+        if (event.getData(DataTickets.ITEM_RENDER_PERSPECTIVE) != ItemDisplayContext.FIRST_PERSON_RIGHT_HAND)
+            return event.setAndContinue(RawAnimation.begin().thenLoop("animation.sks.idle"));
 
         if (GunData.from(stack).reload.empty()) {
             return event.setAndContinue(RawAnimation.begin().thenPlay("animation.sks.reload_empty"));
@@ -106,11 +100,6 @@ public class SksItem extends GunItem implements GeoItem {
     }
 
     @Override
-    public AnimatableInstanceCache getAnimatableInstanceCache() {
-        return this.cache;
-    }
-
-    @Override
     @ParametersAreNonnullByDefault
     public void inventoryTick(ItemStack stack, Level level, Entity entity, int slot, boolean selected) {
         var data = GunData.from(stack);
@@ -134,16 +123,6 @@ public class SksItem extends GunItem implements GeoItem {
     }
 
     @Override
-    public boolean canApplyPerk(Perk perk) {
-        return PerkHelper.RIFLE_PERKS.test(perk) || PerkHelper.MAGAZINE_PERKS.test(perk);
-    }
-
-    @Override
-    public boolean isMagazineReload(ItemStack stack) {
-        return true;
-    }
-
-    @Override
     public boolean isOpenBolt(ItemStack stack) {
         return true;
     }
@@ -156,11 +135,6 @@ public class SksItem extends GunItem implements GeoItem {
     @Override
     public boolean canEjectShell(ItemStack stack) {
         return true;
-    }
-
-    @Override
-    public int getAvailableFireModes() {
-        return FireMode.SEMI.flag;
     }
 
     @Override

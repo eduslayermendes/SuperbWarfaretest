@@ -1,5 +1,6 @@
 package com.atsuishio.superbwarfare.item;
 
+import com.atsuishio.superbwarfare.api.event.RegisterContainersEvent;
 import com.atsuishio.superbwarfare.client.renderer.item.ContainerBlockItemRenderer;
 import com.atsuishio.superbwarfare.init.ModBlockEntities;
 import com.atsuishio.superbwarfare.init.ModBlocks;
@@ -22,6 +23,9 @@ import net.minecraft.world.level.Level;
 import net.minecraft.world.phys.BlockHitResult;
 import net.minecraft.world.phys.HitResult;
 import net.minecraftforge.client.extensions.common.IClientItemExtensions;
+import net.minecraftforge.eventbus.api.EventPriority;
+import net.minecraftforge.eventbus.api.SubscribeEvent;
+import net.minecraftforge.fml.common.Mod;
 import software.bernie.geckolib.animatable.GeoItem;
 import software.bernie.geckolib.core.animatable.instance.AnimatableInstanceCache;
 import software.bernie.geckolib.core.animation.AnimatableManager;
@@ -30,29 +34,28 @@ import software.bernie.geckolib.core.animation.AnimationState;
 import software.bernie.geckolib.core.object.PlayState;
 import software.bernie.geckolib.util.GeckoLibUtil;
 
-import java.util.List;
 import java.util.function.Consumer;
-import java.util.function.Supplier;
 
+@Mod.EventBusSubscriber(modid = com.atsuishio.superbwarfare.Mod.MODID, bus = Mod.EventBusSubscriber.Bus.MOD)
 public class ContainerBlockItem extends BlockItem implements GeoItem {
 
-    /**
-     * 集装箱可用实体列表
-     */
-    public static final List<Supplier<ItemStack>> CONTAINER_ENTITIES = List.of(
-            () -> ContainerBlockItem.createInstance(ModEntities.MK_42.get()),
-            () -> ContainerBlockItem.createInstance(ModEntities.MLE_1934.get()),
-            () -> ContainerBlockItem.createInstance(ModEntities.ANNIHILATOR.get()),
-            () -> ContainerBlockItem.createInstance(ModEntities.LASER_TOWER.get()),
-            () -> ContainerBlockItem.createInstance(ModEntities.SPEEDBOAT.get(), true),
-            () -> ContainerBlockItem.createInstance(ModEntities.AH_6.get()),
-            () -> ContainerBlockItem.createInstance(ModEntities.LAV_150.get(), true),
-            () -> ContainerBlockItem.createInstance(ModEntities.BMP_2.get(), true),
-            () -> ContainerBlockItem.createInstance(ModEntities.PRISM_TANK.get()),
-            () -> ContainerBlockItem.createInstance(ModEntities.YX_100.get()),
-            () -> ContainerBlockItem.createInstance(ModEntities.WHEEL_CHAIR.get()),
-            () -> ContainerBlockItem.createInstance(ModEntities.TOM_6.get())
-    );
+    @SubscribeEvent(priority = EventPriority.HIGH)
+    public static void registerContainers(RegisterContainersEvent event) {
+        event.add(ModEntities.MK_42);
+        event.add(ModEntities.MLE_1934);
+        event.add(ModEntities.HPJ_11);
+        event.add(ModEntities.ANNIHILATOR);
+        event.add(ModEntities.LASER_TOWER);
+        event.add(ModEntities.SPEEDBOAT);
+        event.add(ModEntities.AH_6);
+        event.add(ModEntities.LAV_150);
+        event.add(ModEntities.BMP_2);
+        event.add(ModEntities.PRISM_TANK);
+        event.add(ModEntities.YX_100);
+        event.add(ModEntities.WHEEL_CHAIR);
+        event.add(ModEntities.TOM_6);
+        event.add(ModEntities.A_10A);
+    }
 
     private final AnimatableInstanceCache cache = GeckoLibUtil.createInstanceCache(this);
 
@@ -62,26 +65,18 @@ public class ContainerBlockItem extends BlockItem implements GeoItem {
 
     @Override
     public InteractionResult useOn(UseOnContext context) {
-        ItemStack stack = context.getItemInHand();
-        if (stack.getTag() != null && stack.getTag().getBoolean("CanPlacedAboveWater")) {
-            return InteractionResult.PASS;
-        }
-        return super.useOn(context);
+        return InteractionResult.PASS;
     }
 
     @Override
     public InteractionResultHolder<ItemStack> use(Level level, Player player, InteractionHand hand) {
-        ItemStack stack = player.getItemInHand(hand);
-        if (stack.getTag() != null && stack.getTag().getBoolean("CanPlacedAboveWater")) {
-            BlockHitResult playerPOVHitResult = getPlayerPOVHitResult(level, player, ClipContext.Fluid.WATER);
-            if (playerPOVHitResult.getType() == HitResult.Type.MISS) {
-                return super.use(level, player, hand);
-            }
-            BlockHitResult blockHitResult = playerPOVHitResult.withPosition(playerPOVHitResult.getBlockPos().above());
-            InteractionResult interactionresult = super.useOn(new UseOnContext(player, hand, blockHitResult));
-            return new InteractionResultHolder<>(interactionresult, player.getItemInHand(hand));
+        BlockHitResult playerPOVHitResult = getPlayerPOVHitResult(level, player, ClipContext.Fluid.WATER);
+        if (playerPOVHitResult.getType() == HitResult.Type.MISS) {
+            return super.use(level, player, hand);
         }
-        return super.use(level, player, hand);
+        BlockHitResult blockHitResult = playerPOVHitResult.withPosition(playerPOVHitResult.getBlockPos().above());
+        InteractionResult interactionresult = super.useOn(new UseOnContext(player, hand, blockHitResult));
+        return new InteractionResultHolder<>(interactionresult, player.getItemInHand(hand));
     }
 
     @Override
@@ -132,29 +127,19 @@ public class ContainerBlockItem extends BlockItem implements GeoItem {
     }
 
     public static ItemStack createInstance(Entity entity) {
-        return createInstance(entity, false);
-    }
-
-    public static ItemStack createInstance(EntityType<?> entityType) {
-        return createInstance(entityType, false);
-    }
-
-    public static ItemStack createInstance(Entity entity, boolean canPlacedAboveWater) {
         ItemStack stack = new ItemStack(ModBlocks.CONTAINER.get());
         CompoundTag tag = new CompoundTag();
         tag.put("Entity", entity.serializeNBT());
         tag.putString("EntityType", EntityType.getKey(entity.getType()).toString());
         BlockItem.setBlockEntityData(stack, ModBlockEntities.CONTAINER.get(), tag);
-        stack.getOrCreateTag().putBoolean("CanPlacedAboveWater", canPlacedAboveWater);
         return stack;
     }
 
-    public static ItemStack createInstance(EntityType<?> entityType, boolean canPlacedAboveWater) {
+    public static ItemStack createInstance(EntityType<?> entityType) {
         ItemStack stack = new ItemStack(ModBlocks.CONTAINER.get());
         CompoundTag tag = new CompoundTag();
         tag.putString("EntityType", EntityType.getKey(entityType).toString());
         BlockItem.setBlockEntityData(stack, ModBlockEntities.CONTAINER.get(), tag);
-        stack.getOrCreateTag().putBoolean("CanPlacedAboveWater", canPlacedAboveWater);
         return stack;
     }
 }

@@ -12,7 +12,7 @@ import com.atsuishio.superbwarfare.event.ClientEventHandler;
 import com.atsuishio.superbwarfare.init.ModItems;
 import com.atsuishio.superbwarfare.tools.FormatTool;
 import com.atsuishio.superbwarfare.tools.InventoryTool;
-import com.atsuishio.superbwarfare.tools.SeekTool;
+import com.atsuishio.superbwarfare.tools.TraceTool;
 import com.atsuishio.superbwarfare.tools.animation.AnimationCurves;
 import com.atsuishio.superbwarfare.tools.animation.AnimationTimer;
 import com.mojang.blaze3d.platform.GlStateManager;
@@ -62,6 +62,7 @@ public class VehicleHudOverlay implements IGuiOverlay {
     private static final ResourceLocation PASSENGER = Mod.loc("textures/screens/passenger.png");
     private static final ResourceLocation SELECTED = Mod.loc("textures/screens/vehicle_weapon/selected.png");
     private static final ResourceLocation NUMBER = Mod.loc("textures/screens/vehicle_weapon/number.png");
+    private static final ResourceLocation GEAR = Mod.loc("textures/screens/aircraft/gear.png");
 
     public static final int ANIMATION_TIME = 300;
     private static final AnimationTimer[] weaponSlotsTimer = AnimationTimer.createTimers(9, ANIMATION_TIME, AnimationCurves.EASE_OUT_CIRC);
@@ -81,8 +82,9 @@ public class VehicleHudOverlay implements IGuiOverlay {
 
         Entity vehicle = player.getVehicle();
         PoseStack poseStack = guiGraphics.pose();
-
         poseStack.pushPose();
+        // 渲染地面武装HUD
+        renderLandArmorHud(gui, guiGraphics, partialTick, screenWidth, screenHeight);
 
         RenderSystem.disableDepthTest();
         RenderSystem.depthMask(false);
@@ -90,9 +92,6 @@ public class VehicleHudOverlay implements IGuiOverlay {
         RenderSystem.setShader(GameRenderer::getPositionTexShader);
         RenderSystem.blendFuncSeparate(GlStateManager.SourceFactor.SRC_ALPHA, GlStateManager.DestFactor.ONE_MINUS_SRC_ALPHA, GlStateManager.SourceFactor.ONE, GlStateManager.DestFactor.ZERO);
         RenderSystem.setShaderColor(1, 1, 1, 1);
-
-        // 渲染地面武装HUD
-        renderLandArmorHud(gui, guiGraphics, partialTick, screenWidth, screenHeight);
 
         int compatHeight = getArmorPlateCompatHeight(player);
 
@@ -113,6 +112,21 @@ public class VehicleHudOverlay implements IGuiOverlay {
 
             renderWeaponInfo(guiGraphics, pVehicle, screenWidth, screenHeight);
             renderPassengerInfo(guiGraphics, pVehicle, screenWidth, screenHeight);
+        }
+
+        if (vehicle instanceof AircraftEntity aircraftEntity) {
+            RenderSystem.disableDepthTest();
+            RenderSystem.depthMask(false);
+            RenderSystem.enableBlend();
+            RenderSystem.setShader(GameRenderer::getPositionTexShader);
+            RenderSystem.blendFuncSeparate(GlStateManager.SourceFactor.SRC_ALPHA, GlStateManager.DestFactor.ONE_MINUS_SRC_ALPHA, GlStateManager.SourceFactor.ONE, GlStateManager.DestFactor.ZERO);
+            RenderSystem.setShaderColor(1, 1, 1, 1);
+            float angle = aircraftEntity.gearRot(partialTick);
+            poseStack.pushPose();
+            poseStack.rotateAround(Axis.ZP.rotationDegrees(-90 + angle), 102, screenHeight - 20, 0);
+            preciseBlit(guiGraphics, GEAR, 86, screenHeight - 36, 0, 0, 32, 32, 32, 32);
+            poseStack.popPose();
+
         }
 
         poseStack.popPose();
@@ -176,7 +190,7 @@ public class VehicleHudOverlay implements IGuiOverlay {
                 poseStack.popPose();
 
                 // 时速
-                guiGraphics.drawString(mc.font, Component.literal(FormatTool.format0D(mobileVehicle.getDeltaMovement().length() * 72, " km/h")),
+                guiGraphics.drawString(mc.font, Component.literal(FormatTool.format0D(mobileVehicle.getDeltaMovement().dot(mobileVehicle.getViewVector(partialTick)) * 72, " km/h")),
                         screenWidth / 2 + 160, screenHeight / 2 - 48, 0x66FF00, false);
 
                 // 低电量警告
@@ -199,7 +213,7 @@ public class VehicleHudOverlay implements IGuiOverlay {
 
                 double entityRange = 0;
 
-                Entity lookingEntity = SeekTool.seekLivingEntity(player, player.level(), 512, 1);
+                Entity lookingEntity = TraceTool.camerafFindLookingEntity(player, cameraPos, 512, partialTick);
                 if (lookingEntity != null) {
                     lookAtEntity = true;
                     entityRange = player.distanceTo(lookingEntity);

@@ -2,19 +2,17 @@ package com.atsuishio.superbwarfare.item.gun.launcher;
 
 import com.atsuishio.superbwarfare.Mod;
 import com.atsuishio.superbwarfare.client.PoseTool;
-import com.atsuishio.superbwarfare.client.renderer.item.JavelinItemRenderer;
+import com.atsuishio.superbwarfare.client.renderer.gun.JavelinItemRenderer;
 import com.atsuishio.superbwarfare.client.tooltip.component.LauncherImageComponent;
+import com.atsuishio.superbwarfare.data.gun.GunData;
 import com.atsuishio.superbwarfare.entity.projectile.DecoyEntity;
 import com.atsuishio.superbwarfare.entity.projectile.JavelinMissileEntity;
 import com.atsuishio.superbwarfare.entity.vehicle.base.VehicleEntity;
 import com.atsuishio.superbwarfare.event.ClientEventHandler;
-import com.atsuishio.superbwarfare.init.ModPerks;
 import com.atsuishio.superbwarfare.init.ModSounds;
 import com.atsuishio.superbwarfare.item.gun.GunItem;
-import com.atsuishio.superbwarfare.item.gun.data.GunData;
 import com.atsuishio.superbwarfare.network.message.receive.ShootClientMessage;
 import com.atsuishio.superbwarfare.perk.Perk;
-import com.atsuishio.superbwarfare.perk.PerkHelper;
 import com.atsuishio.superbwarfare.tools.*;
 import net.minecraft.client.Minecraft;
 import net.minecraft.client.model.HumanoidModel;
@@ -46,14 +44,12 @@ import net.minecraftforge.client.extensions.common.IClientItemExtensions;
 import net.minecraftforge.network.PacketDistributor;
 import org.jetbrains.annotations.NotNull;
 import org.joml.Vector3d;
-import software.bernie.geckolib.animatable.GeoItem;
-import software.bernie.geckolib.core.animatable.instance.AnimatableInstanceCache;
+import software.bernie.geckolib.constant.DataTickets;
 import software.bernie.geckolib.core.animation.AnimatableManager;
 import software.bernie.geckolib.core.animation.AnimationController;
 import software.bernie.geckolib.core.animation.AnimationState;
 import software.bernie.geckolib.core.animation.RawAnimation;
 import software.bernie.geckolib.core.object.PlayState;
-import software.bernie.geckolib.util.GeckoLibUtil;
 
 import javax.annotation.ParametersAreNonnullByDefault;
 import java.util.List;
@@ -61,10 +57,7 @@ import java.util.Optional;
 import java.util.Set;
 import java.util.function.Consumer;
 
-public class JavelinItem extends GunItem implements GeoItem {
-
-    private final AnimatableInstanceCache cache = GeckoLibUtil.createInstanceCache(this);
-    public static ItemDisplayContext transformType;
+public class JavelinItem extends GunItem {
 
     public JavelinItem() {
         super(new Properties().stacksTo(1).rarity(RarityTool.LEGENDARY));
@@ -74,10 +67,13 @@ public class JavelinItem extends GunItem implements GeoItem {
     public void initializeClient(@NotNull Consumer<IClientItemExtensions> consumer) {
         super.initializeClient(consumer);
         consumer.accept(new IClientItemExtensions() {
-            private final BlockEntityWithoutLevelRenderer renderer = new JavelinItemRenderer();
+            private BlockEntityWithoutLevelRenderer renderer;
 
             @Override
             public BlockEntityWithoutLevelRenderer getCustomRenderer() {
+                if (renderer == null) {
+                    renderer = new JavelinItemRenderer();
+                }
                 return renderer;
             }
 
@@ -88,15 +84,13 @@ public class JavelinItem extends GunItem implements GeoItem {
         });
     }
 
-    public void getTransformType(ItemDisplayContext type) {
-        transformType = type;
-    }
-
     private PlayState idlePredicate(AnimationState<JavelinItem> event) {
         LocalPlayer player = Minecraft.getInstance().player;
         if (player == null) return PlayState.STOP;
         ItemStack stack = player.getMainHandItem();
         if (!(stack.getItem() instanceof GunItem)) return PlayState.STOP;
+        if (event.getData(DataTickets.ITEM_RENDER_PERSPECTIVE) != ItemDisplayContext.FIRST_PERSON_RIGHT_HAND)
+            return event.setAndContinue(RawAnimation.begin().thenLoop("animation.javelin.idle"));
 
         if (GunData.from(stack).reload.empty()) {
             return event.setAndContinue(RawAnimation.begin().thenPlay("animation.javelin.reload"));
@@ -120,11 +114,6 @@ public class JavelinItem extends GunItem implements GeoItem {
     }
 
     @Override
-    public AnimatableInstanceCache getAnimatableInstanceCache() {
-        return this.cache;
-    }
-
-    @Override
     public Set<SoundEvent> getReloadSound() {
         return Set.of(ModSounds.JAVELIN_RELOAD_EMPTY.get(), ModSounds.JAVELIN_LOCK.get(), ModSounds.JAVELIN_LOCKON.get());
     }
@@ -140,7 +129,7 @@ public class JavelinItem extends GunItem implements GeoItem {
                 List<Entity> decoy = SeekTool.seekLivingEntities(player, player.level(), 512, 8);
                 for (var e : decoy) {
                     if (e instanceof DecoyEntity decoyEntity) {
-                        tag.putString("TargetEntity", decoyEntity.getStringUUID());
+                        tag.putString("TargetEntity", decoyEntity.getDecoyUUID());
                         tag.putDouble("TargetPosX", decoyEntity.getPosition().x);
                         tag.putDouble("TargetPosY", decoyEntity.getPosition().y);
                         tag.putDouble("TargetPosZ", decoyEntity.getPosition().z);
@@ -210,18 +199,8 @@ public class JavelinItem extends GunItem implements GeoItem {
     }
 
     @Override
-    public boolean canApplyPerk(Perk perk) {
-        return PerkHelper.LAUNCHER_PERKS.test(perk);
-    }
-
-    @Override
     public @NotNull Optional<TooltipComponent> getTooltipImage(@NotNull ItemStack pStack) {
         return Optional.of(new LauncherImageComponent(pStack));
-    }
-
-    @Override
-    public boolean isMagazineReload(ItemStack stack) {
-        return true;
     }
 
     @Override
@@ -253,10 +232,11 @@ public class JavelinItem extends GunItem implements GeoItem {
                     tag.getInt("GuideType"),
                     new Vec3(tag.getDouble("TargetPosX"), tag.getDouble("TargetPosY"), tag.getDouble("TargetPosZ")));
 
-            var dmgPerk = GunData.from(stack).perk.get(Perk.Type.DAMAGE);
-            if (dmgPerk == ModPerks.MONSTER_HUNTER.get()) {
-                int perkLevel = GunData.from(stack).perk.getLevel(dmgPerk);
-                missileEntity.setMonsterMultiplier(0.1f + 0.1f * perkLevel);
+            for (Perk.Type type : Perk.Type.values()) {
+                var instance = data.perk.getInstance(type);
+                if (instance != null) {
+                    instance.perk().modifyProjectile(data, instance, missileEntity);
+                }
             }
 
             missileEntity.setPos(player.getX() + firePos.x, player.getEyeY() + firePos.y, player.getZ() + firePos.z);
@@ -329,5 +309,4 @@ public class JavelinItem extends GunItem implements GeoItem {
         tag.putBoolean("Seeking", true);
         tag.putInt("SeekTime", 0);
     }
-
 }

@@ -2,13 +2,11 @@ package com.atsuishio.superbwarfare.item.gun.rifle;
 
 import com.atsuishio.superbwarfare.Mod;
 import com.atsuishio.superbwarfare.client.PoseTool;
-import com.atsuishio.superbwarfare.client.renderer.item.MarlinItemRenderer;
+import com.atsuishio.superbwarfare.client.renderer.gun.MarlinItemRenderer;
+import com.atsuishio.superbwarfare.data.gun.GunData;
 import com.atsuishio.superbwarfare.event.ClientEventHandler;
 import com.atsuishio.superbwarfare.init.ModSounds;
 import com.atsuishio.superbwarfare.item.gun.GunItem;
-import com.atsuishio.superbwarfare.item.gun.data.GunData;
-import com.atsuishio.superbwarfare.perk.Perk;
-import com.atsuishio.superbwarfare.perk.PerkHelper;
 import net.minecraft.client.Minecraft;
 import net.minecraft.client.model.HumanoidModel;
 import net.minecraft.client.player.LocalPlayer;
@@ -22,22 +20,17 @@ import net.minecraft.world.item.ItemDisplayContext;
 import net.minecraft.world.item.ItemStack;
 import net.minecraft.world.item.Rarity;
 import net.minecraftforge.client.extensions.common.IClientItemExtensions;
-import software.bernie.geckolib.animatable.GeoItem;
-import software.bernie.geckolib.core.animatable.instance.AnimatableInstanceCache;
+import software.bernie.geckolib.constant.DataTickets;
 import software.bernie.geckolib.core.animation.AnimatableManager;
 import software.bernie.geckolib.core.animation.AnimationController;
 import software.bernie.geckolib.core.animation.AnimationState;
 import software.bernie.geckolib.core.animation.RawAnimation;
 import software.bernie.geckolib.core.object.PlayState;
-import software.bernie.geckolib.util.GeckoLibUtil;
 
 import java.util.Set;
 import java.util.function.Consumer;
 
-public class MarlinItem extends GunItem implements GeoItem {
-
-    private final AnimatableInstanceCache cache = GeckoLibUtil.createInstanceCache(this);
-    public static ItemDisplayContext transformType;
+public class MarlinItem extends GunItem {
 
     public MarlinItem() {
         super(new Item.Properties().stacksTo(1).rarity(Rarity.COMMON));
@@ -47,10 +40,13 @@ public class MarlinItem extends GunItem implements GeoItem {
     public void initializeClient(Consumer<IClientItemExtensions> consumer) {
         super.initializeClient(consumer);
         consumer.accept(new IClientItemExtensions() {
-            private final BlockEntityWithoutLevelRenderer renderer = new MarlinItemRenderer();
+            private BlockEntityWithoutLevelRenderer renderer;
 
             @Override
             public BlockEntityWithoutLevelRenderer getCustomRenderer() {
+                if (renderer == null) {
+                    renderer = new MarlinItemRenderer();
+                }
                 return renderer;
             }
 
@@ -61,15 +57,14 @@ public class MarlinItem extends GunItem implements GeoItem {
         });
     }
 
-    public void getTransformType(ItemDisplayContext type) {
-        transformType = type;
-    }
-
     private PlayState fireAnimPredicate(AnimationState<MarlinItem> event) {
         LocalPlayer player = Minecraft.getInstance().player;
         if (player == null) return PlayState.STOP;
         ItemStack stack = player.getMainHandItem();
         if (!(stack.getItem() instanceof GunItem)) return PlayState.STOP;
+        if (event.getData(DataTickets.ITEM_RENDER_PERSPECTIVE) != ItemDisplayContext.FIRST_PERSON_RIGHT_HAND)
+            return event.setAndContinue(RawAnimation.begin().thenLoop("animation.marlin.idle"));
+
         var data = GunData.from(stack);
 
         if (GunData.from(stack).bolt.actionTimer.get() > 0) {
@@ -100,25 +95,24 @@ public class MarlinItem extends GunItem implements GeoItem {
         if (player == null) return PlayState.STOP;
         ItemStack stack = player.getMainHandItem();
         if (!(stack.getItem() instanceof GunItem)) return PlayState.STOP;
+        if (event.getData(DataTickets.ITEM_RENDER_PERSPECTIVE) != ItemDisplayContext.FIRST_PERSON_RIGHT_HAND)
+            return event.setAndContinue(RawAnimation.begin().thenLoop("animation.marlin.idle"));
+
         var data = GunData.from(stack);
 
-        if (transformType != null && transformType.firstPerson()) {
-            if (player.isSprinting()
-                    && player.onGround()
-                    && ClientEventHandler.cantSprint == 0
-                    && ClientEventHandler.drawTime < 0.01
-                    && !data.reloading()) {
-                if (ClientEventHandler.tacticalSprint) {
-                    return event.setAndContinue(RawAnimation.begin().thenLoop("animation.marlin.run_fast"));
-                } else {
-                    return event.setAndContinue(RawAnimation.begin().thenLoop("animation.marlin.run"));
-                }
+        if (player.isSprinting() && player.onGround()
+                && ClientEventHandler.cantSprint == 0
+                && ClientEventHandler.drawTime < 0.01
+                && !data.reloading()) {
+            if (ClientEventHandler.tacticalSprint) {
+                return event.setAndContinue(RawAnimation.begin().thenLoop("animation.marlin.run_fast"));
+            } else {
+                return event.setAndContinue(RawAnimation.begin().thenLoop("animation.marlin.run"));
             }
-
-            event.getController().setAnimation(RawAnimation.begin().thenLoop("animation.marlin.idle"));
-            return PlayState.CONTINUE;
         }
-        return PlayState.STOP;
+
+        event.getController().setAnimation(RawAnimation.begin().thenLoop("animation.marlin.idle"));
+        return PlayState.CONTINUE;
     }
 
     @Override
@@ -127,11 +121,6 @@ public class MarlinItem extends GunItem implements GeoItem {
         data.add(fireAnimController);
         var idleController = new AnimationController<>(this, "idleController", 3, this::idlePredicate);
         data.add(idleController);
-    }
-
-    @Override
-    public AnimatableInstanceCache getAnimatableInstanceCache() {
-        return this.cache;
     }
 
     @Override
@@ -150,20 +139,5 @@ public class MarlinItem extends GunItem implements GeoItem {
     @Override
     public String getGunDisplayName() {
         return "MARLIN-1894";
-    }
-
-    @Override
-    public boolean canApplyPerk(Perk perk) {
-        return PerkHelper.RIFLE_PERKS.test(perk) || PerkHelper.MAGAZINE_PERKS.test(perk);
-    }
-
-    @Override
-    public boolean isIterativeReload(ItemStack stack) {
-        return true;
-    }
-
-    @Override
-    public int getAvailableFireModes() {
-        return FireMode.SEMI.flag;
     }
 }

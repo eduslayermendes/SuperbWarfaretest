@@ -1,10 +1,10 @@
 package com.atsuishio.superbwarfare.menu;
 
+import com.atsuishio.superbwarfare.data.gun.GunData;
 import com.atsuishio.superbwarfare.init.ModBlocks;
 import com.atsuishio.superbwarfare.init.ModMenuTypes;
 import com.atsuishio.superbwarfare.item.PerkItem;
 import com.atsuishio.superbwarfare.item.gun.GunItem;
-import com.atsuishio.superbwarfare.item.gun.data.GunData;
 import com.atsuishio.superbwarfare.perk.Perk;
 import com.atsuishio.superbwarfare.perk.PerkInstance;
 import net.minecraft.util.Mth;
@@ -223,7 +223,7 @@ public class ReforgingTableMenu extends AbstractContainerMenu {
      */
     public void generateResult() {
         ItemStack gun = this.container.getItem(INPUT_SLOT);
-        if (!(gun.getItem() instanceof GunItem gunItem)) {
+        if (!(gun.getItem() instanceof GunItem)) {
             return;
         }
 
@@ -240,7 +240,7 @@ public class ReforgingTableMenu extends AbstractContainerMenu {
         List.of(ammo, func, damage).forEach(item -> {
             if (!item.isEmpty()
                     && item.getItem() instanceof PerkItem perkItem
-                    && gunItem.canApplyPerk(perkItem.getPerk())
+                    && GunData.from(container.getItem(INPUT_SLOT)).canApplyPerk(perkItem.getPerk())
             ) {
                 data.perk.set(new PerkInstance(perkItem.getPerk(), (short) switch (perkItem.getPerk().type) {
                     case AMMO -> this.ammoPerkLevel.get();
@@ -468,8 +468,8 @@ public class ReforgingTableMenu extends AbstractContainerMenu {
             };
 
             return pStack.getItem() instanceof PerkItem perkItem && perkItem.getPerk().type == type
-                    && !container.getItem(INPUT_SLOT).isEmpty() && container.getItem(INPUT_SLOT).getItem() instanceof GunItem gunItem
-                    && gunItem.canApplyPerk(perkItem.getPerk()) && container.getItem(slot).isEmpty();
+                    && !container.getItem(INPUT_SLOT).isEmpty() && container.getItem(INPUT_SLOT).getItem() instanceof GunItem
+                    && GunData.from(container.getItem(INPUT_SLOT)).canApplyPerk(perkItem.getPerk()) && container.getItem(slot).isEmpty();
         }
 
         public int getMaxStackSize() {

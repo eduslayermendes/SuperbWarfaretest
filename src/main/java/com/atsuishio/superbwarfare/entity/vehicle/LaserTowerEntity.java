@@ -2,9 +2,12 @@ package com.atsuishio.superbwarfare.entity.vehicle;
 
 import com.atsuishio.superbwarfare.config.server.VehicleConfig;
 import com.atsuishio.superbwarfare.entity.TargetEntity;
+import com.atsuishio.superbwarfare.entity.vehicle.base.AutoAimable;
 import com.atsuishio.superbwarfare.entity.vehicle.base.EnergyVehicleEntity;
-import com.atsuishio.superbwarfare.entity.vehicle.damage.DamageModifier;
-import com.atsuishio.superbwarfare.init.*;
+import com.atsuishio.superbwarfare.init.ModDamageTypes;
+import com.atsuishio.superbwarfare.init.ModEntities;
+import com.atsuishio.superbwarfare.init.ModItems;
+import com.atsuishio.superbwarfare.init.ModSounds;
 import com.atsuishio.superbwarfare.item.ContainerBlockItem;
 import com.atsuishio.superbwarfare.tools.CustomExplosion;
 import com.atsuishio.superbwarfare.tools.EntityFindUtil;
@@ -12,8 +15,6 @@ import com.atsuishio.superbwarfare.tools.ParticleTool;
 import com.atsuishio.superbwarfare.tools.VectorTool;
 import net.minecraft.core.particles.ParticleTypes;
 import net.minecraft.nbt.CompoundTag;
-import net.minecraft.network.protocol.Packet;
-import net.minecraft.network.protocol.game.ClientGamePacketListener;
 import net.minecraft.network.syncher.EntityDataAccessor;
 import net.minecraft.network.syncher.EntityDataSerializers;
 import net.minecraft.network.syncher.SynchedEntityData;
@@ -25,17 +26,13 @@ import net.minecraft.sounds.SoundSource;
 import net.minecraft.util.Mth;
 import net.minecraft.world.InteractionHand;
 import net.minecraft.world.InteractionResult;
-import net.minecraft.world.damagesource.DamageTypes;
 import net.minecraft.world.entity.*;
-import net.minecraft.world.entity.monster.Enemy;
 import net.minecraft.world.entity.player.Player;
+import net.minecraft.world.entity.projectile.Projectile;
 import net.minecraft.world.item.ItemStack;
-import net.minecraft.world.level.ClipContext;
 import net.minecraft.world.level.Explosion;
 import net.minecraft.world.level.Level;
-import net.minecraft.world.phys.HitResult;
 import net.minecraft.world.phys.Vec3;
-import net.minecraftforge.network.NetworkHooks;
 import net.minecraftforge.network.PlayMessages;
 import org.jetbrains.annotations.NotNull;
 import org.jetbrains.annotations.Nullable;
@@ -49,14 +46,13 @@ import software.bernie.geckolib.core.animation.RawAnimation;
 import software.bernie.geckolib.core.object.PlayState;
 import software.bernie.geckolib.util.GeckoLibUtil;
 
-import java.util.Comparator;
 import java.util.Optional;
 import java.util.UUID;
-import java.util.stream.StreamSupport;
 
 import static com.atsuishio.superbwarfare.tools.ParticleTool.sendParticle;
+import static com.atsuishio.superbwarfare.tools.SeekTool.smokeFilter;
 
-public class LaserTowerEntity extends EnergyVehicleEntity implements GeoEntity, OwnableEntity {
+public class LaserTowerEntity extends EnergyVehicleEntity implements GeoEntity, OwnableEntity, AutoAimable {
 
     public static final EntityDataAccessor<Integer> COOL_DOWN = SynchedEntityData.defineId(LaserTowerEntity.class, EntityDataSerializers.INT);
     public static final EntityDataAccessor<String> TARGET_UUID = SynchedEntityData.defineId(LaserTowerEntity.class, EntityDataSerializers.STRING);
@@ -138,32 +134,7 @@ public class LaserTowerEntity extends EnergyVehicleEntity implements GeoEntity, 
         return this.entityData.get(OWNER_UUID).orElse(null);
     }
 
-    @Override
-    public Packet<ClientGamePacketListener> getAddEntityPacket() {
-        return NetworkHooks.getEntitySpawningPacket(this);
-    }
-
-    @Override
-    public DamageModifier getDamageModifier() {
-        return super.getDamageModifier()
-                .multiply(0.1f, DamageTypes.ARROW)
-                .multiply(0.2f, DamageTypes.TRIDENT)
-                .multiply(0.2f, DamageTypes.MOB_ATTACK)
-                .multiply(0.2f, DamageTypes.MOB_ATTACK_NO_AGGRO)
-                .multiply(0.4f, DamageTypes.MOB_PROJECTILE)
-                .multiply(0.4f, DamageTypes.PLAYER_ATTACK)
-                .multiply(1.5f, DamageTypes.EXPLOSION)
-                .multiply(1.5f, DamageTypes.PLAYER_EXPLOSION)
-                .multiply(0.5f, ModDamageTypes.CUSTOM_EXPLOSION)
-                .multiply(0.5f, ModDamageTypes.PROJECTILE_BOOM)
-                .multiply(0.5f, ModDamageTypes.MINE)
-                .multiply(0.5f, ModDamageTypes.LUNGE_MINE)
-                .multiply(0.6f, ModDamageTypes.CANNON_FIRE)
-                .multiply(0.5f, ModTags.DamageTypes.PROJECTILE)
-                .multiply(0.8f, ModTags.DamageTypes.PROJECTILE_ABSOLUTE)
-                .multiply(2f, ModDamageTypes.VEHICLE_STRIKE)
-                .reduce(1);
-    }
+   
 
     @Override
     public @NotNull InteractionResult interact(Player player, @NotNull InteractionHand hand) {
@@ -190,7 +161,7 @@ public class LaserTowerEntity extends EnergyVehicleEntity implements GeoEntity, 
     }
 
     @Override
-    public Vec3 getDeltaMovement() {
+    public @NotNull Vec3 getDeltaMovement() {
         return new Vec3(0, Math.min(super.getDeltaMovement().y, 0), 0);
     }
 
@@ -247,7 +218,7 @@ public class LaserTowerEntity extends EnergyVehicleEntity implements GeoEntity, 
             ParticleTool.spawnMediumExplosionParticles(this.level(), this.position());
         }
 
-        this.discard();
+        super.destroy();
     }
 
     public void autoAim() {
@@ -255,8 +226,10 @@ public class LaserTowerEntity extends EnergyVehicleEntity implements GeoEntity, 
             return;
         }
 
-        if (entityData.get(TARGET_UUID).equals("none") && tickCount % 10 == 0) {
-            Entity naerestEntity = seekNearLivingEntity(72);
+        Vec3 barrelRootPos = new Vec3(this.getX(), this.getY() + 1.390625f, this.getZ());
+
+        if (entityData.get(TARGET_UUID).equals("none") && tickCount % 10 == 0 && entityData.get(COOL_DOWN) == 0) {
+            Entity naerestEntity = seekNearLivingEntity(this, barrelRootPos,-40, 90,1,72, 0.01);
             if (naerestEntity != null) {
                 entityData.set(TARGET_UUID, naerestEntity.getStringUUID());
             }
@@ -264,7 +237,15 @@ public class LaserTowerEntity extends EnergyVehicleEntity implements GeoEntity, 
 
         Entity target = EntityFindUtil.findEntity(level(), entityData.get(TARGET_UUID));
 
-        if (target != null) {
+        if (target != null && smokeFilter(target)) {
+            if (target instanceof Player player1 && (player1.isSpectator() || player1.isCreative())) {
+                this.entityData.set(TARGET_UUID, "none");
+                return;
+            }
+            if (target.distanceTo(this) > 72) {
+                this.entityData.set(TARGET_UUID, "none");
+                return;
+            }
             if (target instanceof LivingEntity living && living.getHealth() <= 0) {
                 this.entityData.set(TARGET_UUID, "none");
                 return;
@@ -273,8 +254,11 @@ public class LaserTowerEntity extends EnergyVehicleEntity implements GeoEntity, 
                 this.entityData.set(TARGET_UUID, "none");
                 return;
             }
+            if (target instanceof Projectile && (VectorTool.calculateAngle(target.getDeltaMovement().normalize(), target.position().vectorTo(this.position()).normalize()) > 60 || target.onGround())) {
+                this.entityData.set(TARGET_UUID, "none");
+                return;
+            }
 
-            Vec3 barrelRootPos = new Vec3(this.getX(), this.getY() + 1.390625f, this.getZ());
             Vec3 targetVec = barrelRootPos.vectorTo(target.getEyePosition()).normalize();
 
             double d0 = targetVec.x;
@@ -295,7 +279,7 @@ public class LaserTowerEntity extends EnergyVehicleEntity implements GeoEntity, 
                 changeTargetTimer++;
             }
 
-            if (this.entityData.get(COOL_DOWN) == 0 && VectorTool.calculateAngle(getViewVector(1), targetVec) < 1 && checkNoClip(target)) {
+            if (this.entityData.get(COOL_DOWN) == 0 && VectorTool.calculateAngle(getViewVector(1), targetVec) < 1 && checkNoClip(this, target, barrelRootPos)) {
                 this.entityData.set(COOL_DOWN, VehicleConfig.LASER_TOWER_COOLDOWN.get());
 
                 if (level() instanceof ServerLevel serverLevel) {
@@ -310,6 +294,12 @@ public class LaserTowerEntity extends EnergyVehicleEntity implements GeoEntity, 
                 if (Math.random() < 0.25 && target instanceof LivingEntity living) {
                     living.setSecondsOnFire(2);
                 }
+
+                if (target instanceof Projectile) {
+                    causeAirExplode(target.position());
+                    target.discard();
+                }
+
                 if (!target.isAlive()) {
                     entityData.set(TARGET_UUID, "none");
                 }
@@ -326,26 +316,44 @@ public class LaserTowerEntity extends EnergyVehicleEntity implements GeoEntity, 
         }
     }
 
-    public Entity seekNearLivingEntity(double seekRange) {
-        return StreamSupport.stream(EntityFindUtil.getEntities(level()).getAll().spliterator(), false)
-                .filter(e -> {
-                    // TODO 自定义目标列表
-                    if (e.distanceTo(this) <= seekRange && ((e instanceof LivingEntity living && living instanceof Enemy && living.getHealth() > 0)
-                    )) {
-                        return checkNoClip(e);
-                    }
-                    return false;
-                }).min(Comparator.comparingDouble(e -> e.distanceTo(this))).orElse(null);
+    @Override
+    public boolean basicEnemyFilter(Entity pEntity) {
+        if (pEntity instanceof Projectile) return false;
+        if (this.getOwner() == null) return false;
+        if (pEntity.getTeam() == null) return false;
+
+        return !pEntity.isAlliedTo(this.getOwner()) || (pEntity.getTeam() != null && pEntity.getTeam().getName().equals("TDM"));
     }
 
-    public boolean checkNoClip(Entity target) {
-        return level().clip(new ClipContext(this.getEyePosition(), target.getEyePosition(),
-                ClipContext.Block.COLLIDER, ClipContext.Fluid.NONE, this)).getType() != HitResult.Type.BLOCK;
+    @Override
+    public boolean basicEnemyProjectileFilter(Projectile projectile) {
+        if (this.getOwner() == null) return false;
+        if (projectile.getOwner() == null) return false;
+        if (projectile.getOwner() == this.getOwner()) return false;
+        return !projectile.getOwner().isAlliedTo(this.getOwner()) || (projectile.getOwner().getTeam() != null && projectile.getOwner().getTeam().getName().equals("TDM"));
+    }
+
+    private void causeAirExplode(Vec3 vec3) {
+        CustomExplosion explosion = new CustomExplosion(this.level(), this,
+                ModDamageTypes.causeProjectileBoomDamage(this.level().registryAccess(),
+                        this,
+                        this.getOwner()),
+                5,
+                vec3.x,
+                vec3.y,
+                vec3.z,
+                1,
+                Explosion.BlockInteraction.KEEP).
+                setDamageMultiplier(1);
+        explosion.explode();
+        net.minecraftforge.event.ForgeEventFactory.onExplosionStart(this.level(), explosion);
+        explosion.finalizeExplosion(false);
+        ParticleTool.spawnMediumExplosionParticles(this.level(), vec3);
     }
 
     private PlayState movementPredicate(AnimationState<LaserTowerEntity> event) {
         if (this.entityData.get(COOL_DOWN) > 10) {
-            return event.setAndContinue(RawAnimation.begin().thenPlay("animation.lt.fire"));
+            return event.setAndContinue(RawAnimation.begin().thenPlayAndHold("animation.lt.fire"));
         }
         return event.setAndContinue(RawAnimation.begin().thenLoop("animation.lt.idle"));
     }
@@ -358,15 +366,5 @@ public class LaserTowerEntity extends EnergyVehicleEntity implements GeoEntity, 
     @Override
     public AnimatableInstanceCache getAnimatableInstanceCache() {
         return this.cache;
-    }
-
-    @Override
-    public int getMaxEnergy() {
-        return VehicleConfig.LASER_TOWER_MAX_ENERGY.get();
-    }
-
-    @Override
-    public float getMaxHealth() {
-        return VehicleConfig.LASER_TOWER_HP.get();
     }
 }

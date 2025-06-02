@@ -3,7 +3,7 @@
 	"minecraft:geometry": [
 		{
 			"description": {
-				"identifier": "geometry.ak",
+				"identifier": "geometry.sks",
 				"texture_width": 256,
 				"texture_height": 256,
 				"visible_bounds_width": 21,
@@ -37,40 +37,12 @@
 				{
 					"name": "flare",
 					"parent": "0",
-					"pivot": [0.5, 2.14727, -23],
-					"cubes": [
-						{
-							"origin": [-3, -0.40938, -23],
-							"size": [6, 5.11328, 0],
-							"uv": {
-								"north": {"uv": [124.75, 46.375], "uv_size": [-3.25, 3.375]},
-								"east": {"uv": [0, 0], "uv_size": [0, 8]},
-								"south": {"uv": [5.75, 129.25], "uv_size": [40.25, 34.875]},
-								"west": {"uv": [0, 0], "uv_size": [0, 8]},
-								"up": {"uv": [8, 0], "uv_size": [-8, 0]},
-								"down": {"uv": [8, 0], "uv_size": [-8, 0]}
-							}
-						}
-					]
+					"pivot": [0, 2.14727, -23]
 				},
 				{
-					"name": "holo",
+					"name": "cross",
 					"parent": "0",
-					"pivot": [0.16407, 4.10469, -101],
-					"cubes": [
-						{
-							"origin": [-2.83593, 1.10469, -101],
-							"size": [6, 6, 0],
-							"uv": {
-								"north": {"uv": [126.8877, 64.44092], "uv_size": [0, -0.25]},
-								"east": {"uv": [0, 0], "uv_size": [0, 8]},
-								"south": {"uv": [5.7002, 167.15967], "uv_size": [40, 40]},
-								"west": {"uv": [0, 0], "uv_size": [0, 8]},
-								"up": {"uv": [8, 0], "uv_size": [-8, 0]},
-								"down": {"uv": [8, 0], "uv_size": [-8, 0]}
-							}
-						}
-					]
+					"pivot": [0.16407, 4.10469, -101]
 				},
 				{
 					"name": "bolt",

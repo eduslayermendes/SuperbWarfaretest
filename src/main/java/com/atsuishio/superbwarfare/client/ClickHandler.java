@@ -4,7 +4,9 @@ import com.atsuishio.superbwarfare.Mod;
 import com.atsuishio.superbwarfare.compat.CompatHolder;
 import com.atsuishio.superbwarfare.compat.clothconfig.ClothConfigHelper;
 import com.atsuishio.superbwarfare.config.client.ReloadConfig;
-import com.atsuishio.superbwarfare.entity.MortarEntity;
+import com.atsuishio.superbwarfare.data.gun.FireMode;
+import com.atsuishio.superbwarfare.data.gun.GunData;
+import com.atsuishio.superbwarfare.entity.vehicle.MortarEntity;
 import com.atsuishio.superbwarfare.entity.vehicle.base.ArmedVehicleEntity;
 import com.atsuishio.superbwarfare.entity.vehicle.base.CannonEntity;
 import com.atsuishio.superbwarfare.entity.vehicle.base.VehicleEntity;
@@ -12,7 +14,6 @@ import com.atsuishio.superbwarfare.entity.vehicle.base.WeaponVehicleEntity;
 import com.atsuishio.superbwarfare.event.ClientEventHandler;
 import com.atsuishio.superbwarfare.init.*;
 import com.atsuishio.superbwarfare.item.gun.GunItem;
-import com.atsuishio.superbwarfare.item.gun.data.GunData;
 import com.atsuishio.superbwarfare.network.message.send.*;
 import com.atsuishio.superbwarfare.tools.SeekTool;
 import com.atsuishio.superbwarfare.tools.TraceTool;
@@ -225,13 +226,13 @@ public class ClickHandler {
             if (key == ModKeyMappings.DISMOUNT.getKey().getValue()) {
                 handleDismountPress(player);
             }
-            if (key == ModKeyMappings.EDIT_MODE.getKey().getValue() && ClientEventHandler.burstFireAmount == 0) {
+            if (key == ModKeyMappings.EDIT_MODE.getKey().getValue() && ClientEventHandler.burstFireAmount == 0
+                    && stack.getItem() instanceof GunItem gunItem && gunItem.isCustomizable(stack)) {
                 ClientEventHandler.holdFire = false;
 
                 if (!isEditing) {
                     player.playSound(ModSounds.EDIT_MODE.get(), 1, 1);
                 }
-                // TODO 退出时的动画渐变
                 isEditing = !isEditing;
             }
 
@@ -346,13 +347,15 @@ public class ClickHandler {
                 && !notInGame()
         ) {
             var data = GunData.from(stack);
-            if (!stack.is(ModItems.BOCEK.get())) {
+            if (!(stack.is(ModItems.BOCEK.get()) || stack.is(ModItems.AURELIA_SCEPTRE.get()))) {
                 player.playSound(ModSounds.TRIGGER_CLICK.get(), 1, 1);
             } else {
                 bowPower = 0;
                 holdFire = true;
                 player.setSprinting(false);
-                return;
+                if (data.ammo.get() > 0) {
+                    return;
+                }
             }
 
             if (!data.useBackpackAmmo() && data.ammo.get() <= 0 && data.reload.time() == 0) {
@@ -368,7 +371,7 @@ public class ClickHandler {
                         && !data.bolt.needed.get())
                         && drawTime < 0.01
                 ) {
-                    if (data.fireMode.get() == 1) {
+                    if (data.fireMode.get() == FireMode.BURST) {
                         if (ClientEventHandler.burstFireAmount == 0) {
                             ClientEventHandler.burstFireAmount = data.burstAmount();
                         }
@@ -388,6 +391,16 @@ public class ClickHandler {
         holdFireVehicle = false;
         isEditing = false;
         customRpm = 0;
+
+        Player player = Minecraft.getInstance().player;
+        if (player == null) return;
+        if (player.isSpectator()) return;
+
+        ItemStack stack = player.getMainHandItem();
+
+        if (stack.is(ModItems.BOCEK.get())) {
+            Mod.PACKET_HANDLER.sendToServer(new ReloadMessage(0));
+        }
     }
 
     public static void handleWeaponZoomPress(Player player, ItemStack stack) {

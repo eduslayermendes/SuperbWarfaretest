@@ -18,6 +18,7 @@ public class ModEntityRenderers {
         event.registerEntityRenderer(ModEntities.TASER_BULLET.get(), TaserBulletProjectileRenderer::new);
         event.registerEntityRenderer(ModEntities.GUN_GRENADE.get(), GunGrenadeRenderer::new);
         event.registerEntityRenderer(ModEntities.TARGET.get(), TargetRenderer::new);
+        event.registerEntityRenderer(ModEntities.DPS_GENERATOR.get(), DPSGeneratorRenderer::new);
         event.registerEntityRenderer(ModEntities.RPG_ROCKET.get(), RpgRocketRenderer::new);
         event.registerEntityRenderer(ModEntities.HELI_ROCKET.get(), HeliRocketRenderer::new);
         event.registerEntityRenderer(ModEntities.MORTAR_SHELL.get(), MortarShellRenderer::new);
@@ -47,5 +48,10 @@ public class ModEntityRenderers {
         event.registerEntityRenderer(ModEntities.WATER_MASK.get(), WaterMaskEntityRenderer::new);
         event.registerEntityRenderer(ModEntities.PRISM_TANK.get(), PrismTankRenderer::new);
         event.registerEntityRenderer(ModEntities.SWARM_DRONE.get(), SwarmDroneRenderer::new);
+        event.registerEntityRenderer(ModEntities.HPJ_11.get(), Hpj11Renderer::new);
+        event.registerEntityRenderer(ModEntities.A_10A.get(), A10Renderer::new);
+        event.registerEntityRenderer(ModEntities.MK_82.get(), Mk82Renderer::new);
+        event.registerEntityRenderer(ModEntities.AGM_65.get(), Agm65Renderer::new);
+        event.registerEntityRenderer(ModEntities.BLU_43.get(), Blu43Renderer::new);
     }
 }

@@ -3,66 +3,61 @@ package com.atsuishio.superbwarfare.item.gun.launcher;
 import com.atsuishio.superbwarfare.Mod;
 import com.atsuishio.superbwarfare.capability.energy.ItemEnergyProvider;
 import com.atsuishio.superbwarfare.client.PoseTool;
-import com.atsuishio.superbwarfare.client.renderer.item.SecondaryCataclysmRenderer;
+import com.atsuishio.superbwarfare.client.TooltipTool;
+import com.atsuishio.superbwarfare.client.renderer.gun.SecondaryCataclysmRenderer;
 import com.atsuishio.superbwarfare.client.tooltip.component.SecondaryCataclysmImageComponent;
+import com.atsuishio.superbwarfare.data.gun.GunData;
 import com.atsuishio.superbwarfare.entity.projectile.GunGrenadeEntity;
 import com.atsuishio.superbwarfare.event.ClientEventHandler;
 import com.atsuishio.superbwarfare.init.ModItems;
-import com.atsuishio.superbwarfare.init.ModPerks;
 import com.atsuishio.superbwarfare.init.ModSounds;
 import com.atsuishio.superbwarfare.item.gun.GunItem;
-import com.atsuishio.superbwarfare.item.gun.data.GunData;
+import com.atsuishio.superbwarfare.perk.AmmoPerk;
 import com.atsuishio.superbwarfare.perk.Perk;
-import com.atsuishio.superbwarfare.perk.PerkHelper;
 import com.atsuishio.superbwarfare.tools.ParticleTool;
 import com.atsuishio.superbwarfare.tools.RarityTool;
-import com.google.common.collect.HashMultimap;
-import com.google.common.collect.Multimap;
+import net.minecraft.ChatFormatting;
 import net.minecraft.client.Minecraft;
 import net.minecraft.client.model.HumanoidModel;
 import net.minecraft.client.player.LocalPlayer;
 import net.minecraft.client.renderer.BlockEntityWithoutLevelRenderer;
 import net.minecraft.core.particles.ParticleTypes;
 import net.minecraft.nbt.CompoundTag;
+import net.minecraft.network.chat.Component;
+import net.minecraft.network.chat.Style;
 import net.minecraft.resources.ResourceLocation;
 import net.minecraft.server.level.ServerLevel;
 import net.minecraft.world.InteractionHand;
 import net.minecraft.world.entity.Entity;
-import net.minecraft.world.entity.EquipmentSlot;
 import net.minecraft.world.entity.LivingEntity;
-import net.minecraft.world.entity.ai.attributes.Attribute;
-import net.minecraft.world.entity.ai.attributes.AttributeModifier;
-import net.minecraft.world.entity.ai.attributes.Attributes;
 import net.minecraft.world.entity.player.Player;
 import net.minecraft.world.inventory.tooltip.TooltipComponent;
 import net.minecraft.world.item.ItemDisplayContext;
 import net.minecraft.world.item.ItemStack;
+import net.minecraft.world.item.TooltipFlag;
 import net.minecraft.world.level.Level;
 import net.minecraftforge.client.extensions.common.IClientItemExtensions;
 import net.minecraftforge.common.capabilities.ForgeCapabilities;
 import net.minecraftforge.common.capabilities.ICapabilityProvider;
 import org.jetbrains.annotations.NotNull;
-import software.bernie.geckolib.animatable.GeoItem;
-import software.bernie.geckolib.core.animatable.instance.AnimatableInstanceCache;
+import org.jetbrains.annotations.Nullable;
+import software.bernie.geckolib.constant.DataTickets;
 import software.bernie.geckolib.core.animation.AnimatableManager;
 import software.bernie.geckolib.core.animation.AnimationController;
 import software.bernie.geckolib.core.animation.AnimationState;
 import software.bernie.geckolib.core.animation.RawAnimation;
 import software.bernie.geckolib.core.object.PlayState;
-import software.bernie.geckolib.util.GeckoLibUtil;
 
 import javax.annotation.ParametersAreNonnullByDefault;
+import java.util.List;
 import java.util.Optional;
-import java.util.UUID;
 import java.util.concurrent.atomic.AtomicInteger;
 import java.util.function.Consumer;
 import java.util.function.Supplier;
 
-public class SecondaryCataclysm extends GunItem implements GeoItem {
-    private final Supplier<Integer> energyCapacity = () -> 24000;
+public class SecondaryCataclysm extends GunItem {
 
-    private final AnimatableInstanceCache cache = GeckoLibUtil.createInstanceCache(this);
-    public static ItemDisplayContext transformType;
+    private final Supplier<Integer> energyCapacity = () -> 24000;
 
     public SecondaryCataclysm() {
         super(new Properties().stacksTo(1).fireResistant().rarity(RarityTool.LEGENDARY));
@@ -97,6 +92,17 @@ public class SecondaryCataclysm extends GunItem implements GeoItem {
     }
 
     @Override
+    @ParametersAreNonnullByDefault
+    public void appendHoverText(ItemStack stack, @Nullable Level level, List<Component> list, TooltipFlag flag) {
+        list.add(Component.empty());
+        list.add(Component.translatable("des.superbwarfare.secondary_cataclysm_1").withStyle(ChatFormatting.GRAY).withStyle(ChatFormatting.ITALIC));
+
+        TooltipTool.addHideText(list, Component.empty());
+        TooltipTool.addHideText(list, Component.translatable("des.superbwarfare.trachelium_3").withStyle(ChatFormatting.WHITE));
+        TooltipTool.addHideText(list, Component.translatable("des.superbwarfare.secondary_cataclysm_2").withStyle(Style.EMPTY.withColor(0x68B9F6)));
+    }
+
+    @Override
     public int getBarColor(@NotNull ItemStack pStack) {
         return 0x95E9FF;
     }
@@ -105,10 +111,13 @@ public class SecondaryCataclysm extends GunItem implements GeoItem {
     public void initializeClient(@NotNull Consumer<IClientItemExtensions> consumer) {
         super.initializeClient(consumer);
         consumer.accept(new IClientItemExtensions() {
-            private final BlockEntityWithoutLevelRenderer renderer = new SecondaryCataclysmRenderer();
+            private BlockEntityWithoutLevelRenderer renderer;
 
             @Override
             public BlockEntityWithoutLevelRenderer getCustomRenderer() {
+                if (renderer == null) {
+                    renderer = new SecondaryCataclysmRenderer();
+                }
                 return renderer;
             }
 
@@ -119,38 +128,33 @@ public class SecondaryCataclysm extends GunItem implements GeoItem {
         });
     }
 
-    public void getTransformType(ItemDisplayContext type) {
-        transformType = type;
-    }
-
     private PlayState reloadAnimPredicate(AnimationState<SecondaryCataclysm> event) {
         LocalPlayer player = Minecraft.getInstance().player;
         if (player == null) return PlayState.STOP;
         ItemStack stack = player.getMainHandItem();
         if (!(stack.getItem() instanceof GunItem)) return PlayState.STOP;
+        if (event.getData(DataTickets.ITEM_RENDER_PERSPECTIVE) != ItemDisplayContext.FIRST_PERSON_RIGHT_HAND)
+            return event.setAndContinue(RawAnimation.begin().thenLoop("animation.secondary_cataclysm.idle"));
+
         var data = GunData.from(stack);
 
         if (data.reload.stage() == 1 && data.reload.prepareLoadTimer.get() > 0) {
-            return event.setAndContinue(RawAnimation.begin().thenPlay("animation.sc.prepare"));
+            return event.setAndContinue(RawAnimation.begin().thenPlay("animation.secondary_cataclysm.prepare"));
         }
 
         if (data.loadIndex.get() == 0 && data.reload.stage() == 2) {
-            return event.setAndContinue(RawAnimation.begin().thenPlay("animation.sc.iterativeload"));
+            return event.setAndContinue(RawAnimation.begin().thenPlay("animation.secondary_cataclysm.iterativeload"));
         }
 
         if (data.loadIndex.get() == 1 && data.reload.stage() == 2) {
-            return event.setAndContinue(RawAnimation.begin().thenPlay("animation.sc.iterativeload2"));
-        }
-
-        if (ClientEventHandler.gunMelee > 0) {
-            return event.setAndContinue(RawAnimation.begin().thenPlay("animation.sc.hit"));
+            return event.setAndContinue(RawAnimation.begin().thenPlay("animation.secondary_cataclysm.iterativeload2"));
         }
 
         if (data.reload.stage() == 3) {
-            return event.setAndContinue(RawAnimation.begin().thenPlay("animation.sc.finish"));
+            return event.setAndContinue(RawAnimation.begin().thenPlay("animation.secondary_cataclysm.finish"));
         }
 
-        return event.setAndContinue(RawAnimation.begin().thenLoop("animation.sc.idle"));
+        return event.setAndContinue(RawAnimation.begin().thenLoop("animation.secondary_cataclysm.idle"));
     }
 
     private PlayState idlePredicate(AnimationState<SecondaryCataclysm> event) {
@@ -158,6 +162,9 @@ public class SecondaryCataclysm extends GunItem implements GeoItem {
         if (player == null) return PlayState.STOP;
         ItemStack stack = player.getMainHandItem();
         if (!(stack.getItem() instanceof GunItem)) return PlayState.STOP;
+        if (event.getData(DataTickets.ITEM_RENDER_PERSPECTIVE) != ItemDisplayContext.FIRST_PERSON_RIGHT_HAND)
+            return event.setAndContinue(RawAnimation.begin().thenLoop("animation.secondary_cataclysm.idle"));
+
         var data = GunData.from(stack);
 
         if (player.isSprinting() && player.onGround()
@@ -170,18 +177,24 @@ public class SecondaryCataclysm extends GunItem implements GeoItem {
                 && ClientEventHandler.gunMelee == 0
                 && !data.reloading()) {
             if (ClientEventHandler.tacticalSprint) {
-                return event.setAndContinue(RawAnimation.begin().thenLoop("animation.sc.run_fast"));
+                return event.setAndContinue(RawAnimation.begin().thenLoop("animation.secondary_cataclysm.run_fast"));
             } else {
-                return event.setAndContinue(RawAnimation.begin().thenLoop("animation.sc.run"));
+                return event.setAndContinue(RawAnimation.begin().thenLoop("animation.secondary_cataclysm.run"));
             }
         }
 
-        return event.setAndContinue(RawAnimation.begin().thenLoop("animation.sc.idle"));
+        return event.setAndContinue(RawAnimation.begin().thenLoop("animation.secondary_cataclysm.idle"));
     }
 
-    @Override
-    public AnimatableInstanceCache getAnimatableInstanceCache() {
-        return this.cache;
+    private PlayState meleePredicate(AnimationState<SecondaryCataclysm> event) {
+        if (event.getData(DataTickets.ITEM_RENDER_PERSPECTIVE) != ItemDisplayContext.FIRST_PERSON_RIGHT_HAND)
+            return event.setAndContinue(RawAnimation.begin().thenLoop("animation.secondary_cataclysm.idle"));
+
+        if (ClientEventHandler.gunMelee > 0) {
+            return event.setAndContinue(RawAnimation.begin().thenPlay("animation.secondary_cataclysm.hit"));
+        }
+
+        return event.setAndContinue(RawAnimation.begin().thenLoop("animation.secondary_cataclysm.idle"));
     }
 
     @Override
@@ -190,6 +203,8 @@ public class SecondaryCataclysm extends GunItem implements GeoItem {
         data.add(reloadAnimController);
         var idleController = new AnimationController<>(this, "idleController", 3, this::idlePredicate);
         data.add(idleController);
+        var meleeController = new AnimationController<>(this, "meleeController", 0, this::meleePredicate);
+        data.add(meleeController);
     }
 
     @Override
@@ -235,40 +250,8 @@ public class SecondaryCataclysm extends GunItem implements GeoItem {
     }
 
     @Override
-    public boolean canApplyPerk(Perk perk) {
-        return PerkHelper.LAUNCHER_PERKS.test(perk) || perk == ModPerks.MICRO_MISSILE.get();
-    }
-
-    @Override
     public @NotNull Optional<TooltipComponent> getTooltipImage(@NotNull ItemStack pStack) {
         return Optional.of(new SecondaryCataclysmImageComponent(pStack));
-    }
-
-    @Override
-    public Multimap<Attribute, AttributeModifier> getAttributeModifiers(EquipmentSlot slot, ItemStack stack) {
-        Multimap<Attribute, AttributeModifier> map = super.getAttributeModifiers(slot, stack);
-        UUID uuid = new UUID(slot.toString().hashCode(), 0);
-        if (slot == EquipmentSlot.MAINHAND) {
-            map = HashMultimap.create(map);
-            map.put(Attributes.ATTACK_DAMAGE,
-                    new AttributeModifier(uuid, Mod.ATTRIBUTE_MODIFIER, 19, AttributeModifier.Operation.ADDITION));
-        }
-        return map;
-    }
-
-    @Override
-    public boolean isIterativeReload(ItemStack stack) {
-        return true;
-    }
-
-    @Override
-    public boolean hasMeleeAttack(ItemStack stack) {
-        return true;
-    }
-
-    @Override
-    public int getAvailableFireModes() {
-        return FireMode.SEMI.flag;
     }
 
     @Override
@@ -276,6 +259,7 @@ public class SecondaryCataclysm extends GunItem implements GeoItem {
         return "40mm Grenade";
     }
 
+    // TODO 这玩意能提取吗
     @Override
     public boolean shootBullet(Player player, GunData data, double spread, boolean zoom) {
         if (data.reloading()) return false;
@@ -294,22 +278,19 @@ public class SecondaryCataclysm extends GunItem implements GeoItem {
                     (float) data.explosionRadius()
             );
 
-            var dmgPerk = GunData.from(stack).perk.get(Perk.Type.DAMAGE);
-            if (dmgPerk == ModPerks.MONSTER_HUNTER.get()) {
-                int perkLevel = GunData.from(stack).perk.getLevel(dmgPerk);
-                gunGrenadeEntity.setMonsterMultiplier(0.1f + 0.1f * perkLevel);
-            }
-
-            gunGrenadeEntity.setNoGravity(GunData.from(stack).perk.get(Perk.Type.AMMO) == ModPerks.MICRO_MISSILE.get());
-            gunGrenadeEntity.charged(isChargedFire);
-
             float velocity = (float) data.velocity();
-            int perkLevel = GunData.from(stack).perk.getLevel(ModPerks.MICRO_MISSILE);
-            if (perkLevel > 0) {
-                gunGrenadeEntity.setExplosionRadius((float) data.explosionRadius() * 0.5f);
-                gunGrenadeEntity.setDamage((float) data.damage() * (1.1f + perkLevel * 0.1f));
-                velocity *= 1.2f;
+
+            for (Perk.Type type : Perk.Type.values()) {
+                var instance = data.perk.getInstance(type);
+                if (instance != null) {
+                    instance.perk().modifyProjectile(data, instance, gunGrenadeEntity);
+                    if (instance.perk() instanceof AmmoPerk ammoPerk) {
+                        velocity = (float) ammoPerk.getModifiedVelocity(data, instance);
+                    }
+                }
             }
+
+            gunGrenadeEntity.charged(isChargedFire);
 
             gunGrenadeEntity.setPos(player.getX(), player.getEyeY() - 0.1, player.getZ());
             gunGrenadeEntity.shoot(player.getLookAngle().x, player.getLookAngle().y, player.getLookAngle().z, (isChargedFire ? 4 : 1) * velocity,

@@ -4,7 +4,6 @@ import com.atsuishio.superbwarfare.Mod;
 import com.atsuishio.superbwarfare.client.AnimationHelper;
 import com.atsuishio.superbwarfare.client.overlay.CrossHairOverlay;
 import com.atsuishio.superbwarfare.event.ClientEventHandler;
-import com.atsuishio.superbwarfare.item.gun.GunItem;
 import com.atsuishio.superbwarfare.item.gun.shotgun.Aa12Item;
 import net.minecraft.client.Minecraft;
 import net.minecraft.resources.ResourceLocation;
@@ -13,34 +12,33 @@ import net.minecraft.world.entity.player.Player;
 import net.minecraft.world.item.ItemStack;
 import software.bernie.geckolib.core.animatable.model.CoreGeoBone;
 import software.bernie.geckolib.core.animation.AnimationState;
-import software.bernie.geckolib.model.GeoModel;
 
-public class Aa12ItemModel extends GeoModel<Aa12Item> {
+public class Aa12ItemModel extends CustomGunModel<Aa12Item> {
 
     @Override
     public ResourceLocation getAnimationResource(Aa12Item animatable) {
-        return Mod.loc("animations/aa12.animation.json");
+        return Mod.loc("animations/aa_12.animation.json");
     }
 
     @Override
     public ResourceLocation getModelResource(Aa12Item animatable) {
-        return Mod.loc("geo/aa12.geo.json");
+        return Mod.loc("geo/aa_12.geo.json");
     }
 
     @Override
     public ResourceLocation getTextureResource(Aa12Item animatable) {
-        return Mod.loc("textures/item/aa12_new.png");
+        return Mod.loc("textures/item/aa_12.png");
     }
 
     @Override
-    public void setCustomAnimations(Aa12Item animatable, long instanceId, AnimationState animationState) {
-        CoreGeoBone gun = getAnimationProcessor().getBone("bone");
-        CoreGeoBone shen = getAnimationProcessor().getBone("shen");
-
+    public void setCustomAnimations(Aa12Item animatable, long instanceId, AnimationState<Aa12Item> animationState) {
         Player player = Minecraft.getInstance().player;
         if (player == null) return;
         ItemStack stack = player.getMainHandItem();
-        if (!(stack.getItem() instanceof GunItem)) return;
+        if (shouldCancelRender(stack, animationState)) return;
+
+        CoreGeoBone gun = getAnimationProcessor().getBone("bone");
+        CoreGeoBone shen = getAnimationProcessor().getBone("shen");
 
         float times = 0.6f * (float) Math.min(Minecraft.getInstance().getDeltaFrameTime(), 0.8);
         double zt = ClientEventHandler.zoomTime;
@@ -82,7 +80,7 @@ public class Aa12ItemModel extends GeoModel<Aa12Item> {
         float numP = (float) (1 - 0.68 * zt);
 
         AnimationHelper.handleReloadShakeAnimation(stack, main, camera, numR, numP);
-        ClientEventHandler.shake(Mth.RAD_TO_DEG * camera.getRotX(), Mth.RAD_TO_DEG * camera.getRotY(), Mth.RAD_TO_DEG * camera.getRotZ());
+        ClientEventHandler.handleReloadShake(Mth.RAD_TO_DEG * camera.getRotX(), Mth.RAD_TO_DEG * camera.getRotY(), Mth.RAD_TO_DEG * camera.getRotZ());
         AnimationHelper.handleShellsAnimation(getAnimationProcessor(), 1f, 0.55f);
     }
 }

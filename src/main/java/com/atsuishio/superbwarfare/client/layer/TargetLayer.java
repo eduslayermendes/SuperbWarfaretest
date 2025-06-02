@@ -13,7 +13,8 @@ import software.bernie.geckolib.renderer.GeoRenderer;
 import software.bernie.geckolib.renderer.layer.GeoRenderLayer;
 
 public class TargetLayer extends GeoRenderLayer<TargetEntity> {
-    private static final ResourceLocation LAYER = new ResourceLocation(Mod.MODID, "textures/entity/target_e.png");
+
+    private static final ResourceLocation LAYER = Mod.loc("textures/entity/target_e.png");
 
     public TargetLayer(GeoRenderer<TargetEntity> entityRenderer) {
         super(entityRenderer);

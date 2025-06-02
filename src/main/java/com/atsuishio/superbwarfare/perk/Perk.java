@@ -1,24 +1,23 @@
 package com.atsuishio.superbwarfare.perk;
 
+import com.atsuishio.superbwarfare.data.gun.DamageReduce;
+import com.atsuishio.superbwarfare.data.gun.GunData;
 import com.atsuishio.superbwarfare.init.ModItems;
 import com.atsuishio.superbwarfare.item.PerkItem;
-import com.atsuishio.superbwarfare.item.gun.data.GunData;
 import net.minecraft.ChatFormatting;
+import net.minecraft.world.damagesource.DamageSource;
+import net.minecraft.world.entity.Entity;
+import net.minecraft.world.entity.LivingEntity;
 import net.minecraft.world.item.Item;
 import net.minecraftforge.registries.RegistryObject;
-
-import java.util.function.BiFunction;
+import org.jetbrains.annotations.Nullable;
 
 public class Perk {
+
     public final String descriptionId;
     public final String name;
     public final Type type;
     public int level = 1;
-
-    public BiFunction<GunData, PerkInstance, Void> tick;
-    public BiFunction<GunData, PerkInstance, Void> preReload;
-    public BiFunction<GunData, PerkInstance, Void> postReload;
-    public BiFunction<GunData, PerkInstance, Void> onKill;
 
     public Perk(String descriptionId, Type type) {
         this.descriptionId = descriptionId;
@@ -52,6 +51,77 @@ public class Perk {
         if (result.isEmpty()) throw new IllegalStateException("Perk " + this.name + " not found");
 
         return result.get();
+    }
+
+    /**
+     * 在背包中每Tick触发
+     */
+    public void tick(GunData data, PerkInstance instance, @Nullable LivingEntity living) {
+    }
+
+    public void preReload(GunData data, PerkInstance instance, @Nullable LivingEntity living) {
+    }
+
+    public void postReload(GunData data, PerkInstance instance, @Nullable LivingEntity living) {
+    }
+
+    public void onKill(GunData data, PerkInstance instance, LivingEntity target, DamageSource source) {
+    }
+
+    public void onHit(float damage, GunData data, PerkInstance instance, LivingEntity target, DamageSource source) {
+    }
+
+    public float getModifiedDamage(float damage, GunData data, PerkInstance instance, @Nullable LivingEntity target, DamageSource source) {
+        return damage;
+    }
+
+    public int getModifiedRPM(int rpm, GunData data, PerkInstance instance) {
+        return rpm;
+    }
+
+    public int getModifiedCustomRPM(int rpm, GunData data, PerkInstance instance) {
+        return rpm;
+    }
+
+    /**
+     * 在切换物品时触发
+     */
+    public void onChangeSlot(GunData data, PerkInstance instance, @Nullable LivingEntity living) {
+    }
+
+    public boolean shouldCancelHurtEvent(float damage, GunData data, PerkInstance instance, LivingEntity target, DamageSource source) {
+        return false;
+    }
+
+    public void modifyProjectile(GunData data, PerkInstance instance, Entity entity) {
+    }
+
+    /**
+     * 用于武器伤害信息显示
+     */
+    public double getDisplayDamage(double damage, GunData data, PerkInstance instance) {
+        return damage;
+    }
+
+    /**
+     * 用于武器额外伤害信息显示，默认为负数
+     */
+    public double getExtraDisplayDamage(double damage, GunData data, PerkInstance instance) {
+        return -1;
+    }
+
+    /**
+     * 用于处理武器伤害衰减比率
+     */
+    public double getModifiedDamageReduceRate(DamageReduce reduce) {
+        return reduce.getRate();
+    }
+
+    /**
+     * 用于处理武器伤害衰减最小距离
+     */
+    public double getModifiedDamageReduceMinDistance(DamageReduce reduce) {
+        return reduce.getMinDistance();
     }
 
     public enum Type {

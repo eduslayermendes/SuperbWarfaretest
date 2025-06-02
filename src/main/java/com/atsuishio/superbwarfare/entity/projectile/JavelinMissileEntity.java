@@ -19,6 +19,7 @@ import net.minecraft.network.syncher.EntityDataSerializers;
 import net.minecraft.network.syncher.SynchedEntityData;
 import net.minecraft.server.level.ServerLevel;
 import net.minecraft.server.level.ServerPlayer;
+import net.minecraft.sounds.SoundEvent;
 import net.minecraft.sounds.SoundEvents;
 import net.minecraft.sounds.SoundSource;
 import net.minecraft.util.Mth;
@@ -44,6 +45,7 @@ import net.minecraft.world.phys.Vec3;
 import net.minecraftforge.network.NetworkHooks;
 import net.minecraftforge.network.PacketDistributor;
 import net.minecraftforge.network.PlayMessages;
+import org.jetbrains.annotations.NotNull;
 import software.bernie.geckolib.animatable.GeoEntity;
 import software.bernie.geckolib.core.animatable.instance.AnimatableInstanceCache;
 import software.bernie.geckolib.core.animation.AnimatableManager;
@@ -55,7 +57,8 @@ import software.bernie.geckolib.util.GeckoLibUtil;
 
 import java.util.List;
 
-public class JavelinMissileEntity extends FastThrowableProjectile implements GeoEntity, DestroyableProjectileEntity {
+public class JavelinMissileEntity extends FastThrowableProjectile implements GeoEntity, DestroyableProjectileEntity, ExplosiveProjectile {
+
     public static final EntityDataAccessor<Float> HEALTH = SynchedEntityData.defineId(JavelinMissileEntity.class, EntityDataSerializers.FLOAT);
     public static final EntityDataAccessor<String> TARGET_UUID = SynchedEntityData.defineId(JavelinMissileEntity.class, EntityDataSerializers.STRING);
     public static final EntityDataAccessor<Boolean> TOP = SynchedEntityData.defineId(JavelinMissileEntity.class, EntityDataSerializers.BOOLEAN);
@@ -65,22 +68,22 @@ public class JavelinMissileEntity extends FastThrowableProjectile implements Geo
     private final AnimatableInstanceCache cache = GeckoLibUtil.createInstanceCache(this);
     private float monsterMultiplier = 0.0f;
     private float damage = 500.0f;
-    private float explosion_damage = 140f;
-    private float explosion_radius = 6f;
+    private float explosionDamage = 140f;
+    private float explosionRadius = 6f;
     private boolean distracted = false;
-    private int guide_type = 0;
+    private int guideType = 0;
 
     public JavelinMissileEntity(EntityType<? extends JavelinMissileEntity> type, Level world) {
         super(type, world);
         this.noCulling = true;
     }
 
-    public JavelinMissileEntity(LivingEntity entity, Level level, float damage, float explosion_damage, float explosion_radius, int guide_type, Vec3 targetPos) {
+    public JavelinMissileEntity(LivingEntity entity, Level level, float damage, float explosionDamage, float explosionRadius, int guideType, Vec3 targetPos) {
         super(ModEntities.JAVELIN_MISSILE.get(), entity, level);
         this.damage = damage;
-        this.explosion_damage = explosion_damage;
-        this.explosion_radius = explosion_radius;
-        this.guide_type = guide_type;
+        this.explosionDamage = explosionDamage;
+        this.explosionRadius = explosionRadius;
+        this.guideType = guideType;
         this.entityData.set(TARGET_X, (float) targetPos.x);
         this.entityData.set(TARGET_Y, (float) targetPos.y);
         this.entityData.set(TARGET_Z, (float) targetPos.z);
@@ -95,12 +98,12 @@ public class JavelinMissileEntity extends FastThrowableProjectile implements Geo
     }
 
     @Override
-    public Packet<ClientGamePacketListener> getAddEntityPacket() {
+    public @NotNull Packet<ClientGamePacketListener> getAddEntityPacket() {
         return NetworkHooks.getEntitySpawningPacket(this);
     }
 
     @Override
-    protected Item getDefaultItem() {
+    protected @NotNull Item getDefaultItem() {
         return ModItems.JAVELIN_MISSILE.get();
     }
 
@@ -135,6 +138,7 @@ public class JavelinMissileEntity extends FastThrowableProjectile implements Geo
 
     @Override
     protected void defineSynchedData() {
+        super.defineSynchedData();
         this.entityData.define(HEALTH, 10f);
         this.entityData.define(TARGET_UUID, "none");
         this.entityData.define(TOP, false);
@@ -149,17 +153,29 @@ public class JavelinMissileEntity extends FastThrowableProjectile implements Geo
     }
 
     @Override
-    public void readAdditionalSaveData(CompoundTag compound) {
+    public void readAdditionalSaveData(@NotNull CompoundTag compound) {
         super.readAdditionalSaveData(compound);
         if (compound.contains("Health")) {
             this.entityData.set(HEALTH, compound.getFloat("Health"));
         }
+        if (compound.contains("Damage")) {
+            this.damage = compound.getFloat("Damage");
+        }
+        if (compound.contains("ExplosionDamage")) {
+            this.explosionDamage = compound.getFloat("ExplosionDamage");
+        }
+        if (compound.contains("Radius")) {
+            this.explosionRadius = compound.getFloat("Radius");
+        }
     }
 
     @Override
-    public void addAdditionalSaveData(CompoundTag compound) {
+    public void addAdditionalSaveData(@NotNull CompoundTag compound) {
         super.addAdditionalSaveData(compound);
         compound.putFloat("Health", this.entityData.get(HEALTH));
+        compound.putFloat("Damage", this.damage);
+        compound.putFloat("ExplosionDamage", this.explosionDamage);
+        compound.putFloat("Radius", this.explosionRadius);
     }
 
     @Override
@@ -205,7 +221,7 @@ public class JavelinMissileEntity extends FastThrowableProjectile implements Geo
     }
 
     @Override
-    public void onHitBlock(BlockHitResult blockHitResult) {
+    public void onHitBlock(@NotNull BlockHitResult blockHitResult) {
         super.onHitBlock(blockHitResult);
         BlockPos resultPos = blockHitResult.getBlockPos();
         BlockState state = this.level().getBlockState(resultPos);
@@ -231,12 +247,12 @@ public class JavelinMissileEntity extends FastThrowableProjectile implements Geo
 
         for (var e : decoy) {
             if (e instanceof DecoyEntity decoyEntity && !distracted) {
-                this.entityData.set(TARGET_UUID, decoyEntity.getStringUUID());
+                this.entityData.set(TARGET_UUID, decoyEntity.getDecoyUUID());
                 distracted = true;
             }
         }
 
-        if (guide_type == 0 || !entityData.get(TARGET_UUID).equals("none")) {
+        if (guideType == 0 || !entityData.get(TARGET_UUID).equals("none")) {
             if (entity != null) {
                 if (entity.level() instanceof ServerLevel) {
                     this.entityData.set(TARGET_X, (float) entity.getX());
@@ -266,18 +282,18 @@ public class JavelinMissileEntity extends FastThrowableProjectile implements Geo
                         } else {
                             boolean lostTarget = this.getY() < entity.getY();
                             if (!lostTarget) {
-                                setDeltaMovement(getDeltaMovement().add(toVec.scale(1)).scale(0.87));
+                                setDeltaMovement(getDeltaMovement().add(toVec).scale(0.87));
                             }
                         }
                     } else {
                         boolean lostTarget = (VectorTool.calculateAngle(getDeltaMovement(), toVec) > 80);
                         if (!lostTarget) {
-                            setDeltaMovement(getDeltaMovement().add(toVec.scale(1)).scale(0.87));
+                            setDeltaMovement(getDeltaMovement().add(toVec).scale(0.87));
                         }
                     }
                 }
             }
-        } else if (guide_type == 1) {
+        } else if (guideType == 1) {
             double px = this.getX();
             double ex = this.entityData.get(TARGET_X);
             double pz = this.getZ();
@@ -295,13 +311,13 @@ public class JavelinMissileEntity extends FastThrowableProjectile implements Geo
                     } else {
                         boolean lostTarget = this.getY() < this.entityData.get(TARGET_Y);
                         if (!lostTarget) {
-                            setDeltaMovement(getDeltaMovement().add(toVec.scale(1)).scale(0.87));
+                            setDeltaMovement(getDeltaMovement().add(toVec).scale(0.87));
                         }
                     }
                 } else {
                     boolean lostTarget = (VectorTool.calculateAngle(getDeltaMovement(), toVec) > 80);
                     if (!lostTarget) {
-                        setDeltaMovement(getDeltaMovement().add(toVec.scale(1)).scale(0.87));
+                        setDeltaMovement(getDeltaMovement().add(toVec).scale(0.87));
                     }
                 }
             }
@@ -325,7 +341,7 @@ public class JavelinMissileEntity extends FastThrowableProjectile implements Geo
             if (this.level() instanceof ServerLevel) {
                 ProjectileTool.causeCustomExplode(this,
                         ModDamageTypes.causeProjectileBoomDamage(this.level().registryAccess(), this, this.getOwner()),
-                        this, this.explosion_damage, this.explosion_radius, this.monsterMultiplier);
+                        this, this.explosionDamage, this.explosionRadius, this.monsterMultiplier);
             }
             this.discard();
         }
@@ -347,17 +363,17 @@ public class JavelinMissileEntity extends FastThrowableProjectile implements Geo
                 ModDamageTypes.causeProjectileBoomDamage(this.level().registryAccess(),
                         this,
                         this.getOwner()),
-                explosion_damage,
+                explosionDamage,
                 this.getX(),
                 this.getEyeY(),
                 this.getZ(),
-                explosion_radius,
-                ExplosionConfig.EXPLOSION_DESTROY.get() ? Explosion.BlockInteraction.DESTROY : Explosion.BlockInteraction.KEEP).
+                explosionRadius,
+                ExplosionConfig.EXPLOSION_DESTROY.get() ? Explosion.BlockInteraction.DESTROY : Explosion.BlockInteraction.KEEP, true).
                 setDamageMultiplier(this.monsterMultiplier);
         explosion.explode();
         net.minecraftforge.event.ForgeEventFactory.onExplosionStart(this.level(), explosion);
         explosion.finalizeExplosion(false);
-        ParticleTool.spawnSmallExplosionParticles(this.level(), result.getLocation());
+        ParticleTool.spawnMediumExplosionParticles(this.level(), result.getLocation());
     }
 
     private PlayState movementPredicate(AnimationState<JavelinMissileEntity> event) {
@@ -382,5 +398,35 @@ public class JavelinMissileEntity extends FastThrowableProjectile implements Geo
     @Override
     public boolean shouldSyncMotion() {
         return true;
+    }
+
+    @Override
+    public @NotNull SoundEvent getCloseSound() {
+        return ModSounds.ROCKET_ENGINE.get();
+    }
+
+    @Override
+    public @NotNull SoundEvent getSound() {
+        return ModSounds.ROCKET_FLY.get();
+    }
+
+    @Override
+    public float getVolume() {
+        return 0.4f;
+    }
+
+    @Override
+    public void setDamage(float damage) {
+        this.damage = damage;
+    }
+
+    @Override
+    public void setExplosionDamage(float damage) {
+        this.explosionDamage = damage;
+    }
+
+    @Override
+    public void setExplosionRadius(float radius) {
+        this.explosionRadius = radius;
     }
 }

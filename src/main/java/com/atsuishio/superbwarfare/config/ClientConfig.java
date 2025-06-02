@@ -16,5 +16,4 @@ public class ClientConfig {
 
         return builder.build();
     }
-
 }

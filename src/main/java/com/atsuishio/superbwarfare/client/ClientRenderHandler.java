@@ -21,7 +21,6 @@ public class ClientRenderHandler {
     @SubscribeEvent
     public static void registerTooltip(RegisterClientTooltipComponentFactoriesEvent event) {
         event.register(GunImageComponent.class, ClientGunImageTooltip::new);
-        event.register(ShotgunImageComponent.class, ClientShotgunImageTooltip::new);
         event.register(BocekImageComponent.class, ClientBocekImageTooltip::new);
         event.register(EnergyImageComponent.class, ClientEnergyImageTooltip::new);
         event.register(CellImageComponent.class, ClientCellImageTooltip::new);
@@ -29,6 +28,7 @@ public class ClientRenderHandler {
         event.register(LauncherImageComponent.class, ClientLauncherImageTooltip::new);
         event.register(SecondaryCataclysmImageComponent.class, ClientSecondaryCataclysmImageTooltip::new);
         event.register(ChargingStationImageComponent.class, ClientChargingStationImageTooltip::new);
+        event.register(DogTagImageComponent.class, ClientDogTagImageTooltip::new);
     }
 
     @SubscribeEvent
@@ -51,7 +51,6 @@ public class ClientRenderHandler {
         event.registerBelowAll(Yx100SwarmDroneHudOverlay.ID, new Yx100SwarmDroneHudOverlay());
         event.registerBelowAll(AmmoBarOverlay.ID, new AmmoBarOverlay());
         event.registerBelowAll(AmmoCountOverlay.ID, new AmmoCountOverlay());
-        event.registerBelowAll(ArmRendererFixOverlay.ID, new ArmRendererFixOverlay());
         event.registerBelowAll(CannonHudOverlay.ID, new CannonHudOverlay());
         event.registerBelowAll(CrossHairOverlay.ID, new CrossHairOverlay());
         event.registerBelowAll(DroneHudOverlay.ID, new DroneHudOverlay());
@@ -60,6 +59,7 @@ public class ClientRenderHandler {
         event.registerBelowAll(HandsomeFrameOverlay.ID, new HandsomeFrameOverlay());
         event.registerBelowAll(SpyglassRangeOverlay.ID, new SpyglassRangeOverlay());
         event.registerBelowAll(HelicopterHudOverlay.ID, new HelicopterHudOverlay());
+        event.registerBelowAll(AircraftOverlay.ID, new AircraftOverlay());
         event.registerBelowAll(MortarInfoOverlay.ID, new MortarInfoOverlay());
     }
 }

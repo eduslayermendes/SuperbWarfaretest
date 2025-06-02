@@ -27,6 +27,18 @@ public class ModBlockStateProvider extends BlockStateProvider {
         horizontalBlock(ModBlocks.SMALL_CONTAINER.get(), new ModelFile.UncheckedModelFile(modLoc("block/small_container")));
         horizontalBlock(ModBlocks.CHARGING_STATION.get(), new ModelFile.UncheckedModelFile(modLoc("block/charging_station")));
         horizontalBlock(ModBlocks.CREATIVE_CHARGING_STATION.get(), new ModelFile.UncheckedModelFile(modLoc("block/creative_charging_station")));
+        horizontalBlock(ModBlocks.VEHICLE_DEPLOYER.get(), models().cubeBottomTop("vehicle_deployer", Mod.loc("block/vehicle_deployer_side"),
+                        Mod.loc("block/vehicle_deployer_bottom"), Mod.loc("block/vehicle_deployer_top"))
+                .texture("particle", Mod.loc("block/vehicle_deployer_bottom")));
+
+        horizontalBlock(ModBlocks.AIRCRAFT_CATAPULT.get(), models().cube("aircraft_catapult",
+                        Mod.loc("block/vehicle_deployer_bottom"),
+                        Mod.loc("block/aircraft_catapult_top"),
+                        Mod.loc("block/aircraft_catapult_side"),
+                        Mod.loc("block/aircraft_catapult_side"),
+                        Mod.loc("block/aircraft_catapult_side2"),
+                        Mod.loc("block/aircraft_catapult_side2"))
+                .texture("particle", Mod.loc("block/aircraft_catapult_top")));
 
         blockWithItem(ModBlocks.GALENA_ORE);
         blockWithItem(ModBlocks.DEEPSLATE_GALENA_ORE);

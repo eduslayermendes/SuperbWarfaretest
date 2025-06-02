@@ -8,9 +8,11 @@ import com.atsuishio.superbwarfare.init.ModItems;
 import com.atsuishio.superbwarfare.tools.EntityFindUtil;
 import com.atsuishio.superbwarfare.tools.FormatTool;
 import com.atsuishio.superbwarfare.tools.SeekTool;
+import com.atsuishio.superbwarfare.tools.TraceTool;
 import com.mojang.blaze3d.platform.GlStateManager;
 import com.mojang.blaze3d.systems.RenderSystem;
 import com.mojang.blaze3d.vertex.PoseStack;
+import net.minecraft.client.Camera;
 import net.minecraft.client.Minecraft;
 import net.minecraft.client.gui.GuiGraphics;
 import net.minecraft.client.renderer.GameRenderer;
@@ -47,6 +49,8 @@ public class DroneHudOverlay implements IGuiOverlay {
     public void render(ForgeGui gui, GuiGraphics guiGraphics, float partialTick, int screenWidth, int screenHeight) {
         Minecraft mc = gui.getMinecraft();
         Player player = mc.player;
+        Camera camera = mc.gameRenderer.getMainCamera();
+        Vec3 cameraPos = camera.getPosition();
 
         if (player == null) return;
 
@@ -80,15 +84,15 @@ public class DroneHudOverlay implements IGuiOverlay {
                 boolean lookAtEntity = false;
                 double distance = player.distanceTo(entity);
 
-                BlockHitResult result = entity.level().clip(new ClipContext(entity.getEyePosition(), entity.getEyePosition().add(player.getViewVector(1).scale(512)),
+                BlockHitResult result = entity.level().clip(new ClipContext(cameraPos, cameraPos.add(entity.getViewVector(1).scale(512)),
                         ClipContext.Block.OUTLINE, ClipContext.Fluid.NONE, entity));
                 Vec3 hitPos = result.getLocation();
 
-                double blockRange = player.getEyePosition(1).distanceTo(hitPos);
+                double blockRange = cameraPos.distanceTo(hitPos);
 
                 double entityRange = 0;
 
-                Entity lookingEntity = SeekTool.seekLivingEntity(entity, entity.level(), 512, 2);
+                Entity lookingEntity = TraceTool.droneFindLookingEntity(entity, cameraPos, 512, partialTick);
                 if (lookingEntity != null) {
                     lookAtEntity = true;
                     entityRange = entity.distanceTo(lookingEntity);

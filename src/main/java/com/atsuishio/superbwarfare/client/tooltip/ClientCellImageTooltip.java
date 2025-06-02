@@ -1,6 +1,6 @@
 package com.atsuishio.superbwarfare.client.tooltip;
 
-import com.atsuishio.superbwarfare.client.tooltip.component.GunImageComponent;
+import com.atsuishio.superbwarfare.client.tooltip.component.CellImageComponent;
 import net.minecraft.ChatFormatting;
 import net.minecraft.client.gui.Font;
 import net.minecraft.client.gui.GuiGraphics;
@@ -19,7 +19,7 @@ public class ClientCellImageTooltip implements ClientTooltipComponent {
     protected final int height;
     protected final ItemStack stack;
 
-    public ClientCellImageTooltip(GunImageComponent tooltip) {
+    public ClientCellImageTooltip(CellImageComponent tooltip) {
         this.width = tooltip.width;
         this.height = tooltip.height;
         this.stack = tooltip.stack;
@@ -49,7 +49,7 @@ public class ClientCellImageTooltip implements ClientTooltipComponent {
         int energy = storage.getEnergyStored();
         int maxEnergy = storage.getMaxEnergyStored();
         float percentage = Mth.clamp((float) energy / maxEnergy, 0, 1);
-        MutableComponent component = Component.literal("");
+        MutableComponent component = Component.empty();
 
         ChatFormatting format;
         if (percentage <= .2f) {
@@ -64,7 +64,7 @@ public class ClientCellImageTooltip implements ClientTooltipComponent {
         for (int i = 0; i < count; i++) {
             component.append(Component.literal("|").withStyle(format));
         }
-        component.append(Component.literal("").withStyle(ChatFormatting.RESET));
+        component.append(Component.empty().withStyle(ChatFormatting.RESET));
         for (int i = 0; i < 50 - count; i++) {
             component.append(Component.literal("|").withStyle(ChatFormatting.GRAY));
         }

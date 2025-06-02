@@ -1,7 +1,8 @@
 package com.atsuishio.superbwarfare.tools;
 
 import com.atsuishio.superbwarfare.Mod;
-import com.atsuishio.superbwarfare.item.gun.data.DefaultGunData;
+import com.atsuishio.superbwarfare.data.gun.DefaultGunData;
+import com.atsuishio.superbwarfare.data.gun.GunData;
 import com.atsuishio.superbwarfare.network.message.receive.GunsDataMessage;
 import com.google.gson.Gson;
 import net.minecraft.nbt.CompoundTag;
@@ -24,19 +25,35 @@ public class GunsTool {
 
     public static HashMap<String, DefaultGunData> gunsData = new HashMap<>();
 
+    public static final String GUN_DATA_FOLDER = "guns";
+
     /**
      * 初始化数据，从data中读取数据json文件
      */
     public static void initJsonData(ResourceManager manager) {
-        for (var entry : manager.listResources("guns", file -> file.getPath().endsWith(".json")).entrySet()) {
-            var id = entry.getKey();
+        gunsData.clear();
+        GunData.dataCache.invalidateAll();
+
+        for (var entry : manager.listResources(GUN_DATA_FOLDER, file -> file.getPath().endsWith(".json")).entrySet()) {
             var attribute = entry.getValue();
+
             try {
                 Gson gson = new Gson();
                 var data = gson.fromJson(new InputStreamReader(attribute.open()), DefaultGunData.class);
-                var path = id.getPath();
 
-                gunsData.put(path.substring(5, path.length() - 5), data);
+                String id;
+                if (!data.id.trim().isEmpty()) {
+                    id = data.id;
+                } else {
+                    var path = entry.getKey().getPath();
+                    id = Mod.MODID + ":" + path.substring(GUN_DATA_FOLDER.length() + 1, path.length() - GUN_DATA_FOLDER.length() - 1);
+                    Mod.LOGGER.warn("Gun ID for {} is empty, try using {} as id", path, id);
+                    data.id = id;
+                }
+
+                if (!gunsData.containsKey(id)) {
+                    gunsData.put(id, data);
+                }
             } catch (Exception e) {
                 Mod.LOGGER.error(e.getMessage());
             }
@@ -46,6 +63,11 @@ public class GunsTool {
     @SubscribeEvent
     public static void onPlayerLogin(PlayerEvent.PlayerLoggedInEvent event) {
         if (event.getEntity() instanceof ServerPlayer player) {
+            var server = player.getServer();
+            if (server != null && server.isSingleplayerOwner(player.getGameProfile())) {
+                return;
+            }
+
             Mod.PACKET_HANDLER.send(PacketDistributor.PLAYER.with(() -> player), GunsDataMessage.create());
         }
     }
@@ -56,33 +78,19 @@ public class GunsTool {
     }
 
     @SubscribeEvent
-    public static void datapackSync(OnDatapackSyncEvent event) {
-        initJsonData(event.getPlayerList().getServer().getResourceManager());
+    public static void onDataPackSync(OnDatapackSyncEvent event) {
+        var players = event.getPlayerList();
+        var server = players.getServer();
+        initJsonData(server.getResourceManager());
 
-        event.getPlayerList().getPlayers().forEach(player -> Mod.PACKET_HANDLER.send(PacketDistributor.PLAYER.with(() -> player), GunsDataMessage.create()));
-    }
+        var message = GunsDataMessage.create();
+        for (var player : players.getPlayers()) {
+            if (server.isSingleplayerOwner(player.getGameProfile())) {
+                continue;
+            }
 
-    /* PerkData */
-    public static void setPerkIntTag(ItemStack stack, String name, int num) {
-        CompoundTag tag = stack.getOrCreateTag().getCompound("PerkData");
-        tag.putInt(name, num);
-        stack.addTagElement("PerkData", tag);
-    }
-
-    public static int getPerkIntTag(ItemStack stack, String name) {
-        CompoundTag tag = stack.getOrCreateTag().getCompound("PerkData");
-        return tag.getInt(name);
-    }
-
-    public static void setPerkBooleanTag(ItemStack stack, String name, boolean flag) {
-        CompoundTag tag = stack.getOrCreateTag().getCompound("PerkData");
-        tag.putBoolean(name, flag);
-        stack.addTagElement("PerkData", tag);
-    }
-
-    public static boolean getPerkBooleanTag(ItemStack stack, String name) {
-        CompoundTag tag = stack.getOrCreateTag().getCompound("PerkData");
-        return tag.getBoolean(name);
+            Mod.PACKET_HANDLER.send(PacketDistributor.PLAYER.with(() -> player), message);
+        }
     }
 
     public static void setGunIntTag(ItemStack stack, String name, int num) {

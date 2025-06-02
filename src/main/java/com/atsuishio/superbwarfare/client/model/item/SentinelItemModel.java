@@ -2,9 +2,8 @@ package com.atsuishio.superbwarfare.client.model.item;
 
 import com.atsuishio.superbwarfare.Mod;
 import com.atsuishio.superbwarfare.client.overlay.CrossHairOverlay;
+import com.atsuishio.superbwarfare.data.gun.GunData;
 import com.atsuishio.superbwarfare.event.ClientEventHandler;
-import com.atsuishio.superbwarfare.item.gun.GunItem;
-import com.atsuishio.superbwarfare.item.gun.data.GunData;
 import com.atsuishio.superbwarfare.item.gun.sniper.SentinelItem;
 import net.minecraft.client.Minecraft;
 import net.minecraft.resources.ResourceLocation;
@@ -13,9 +12,8 @@ import net.minecraft.world.entity.player.Player;
 import net.minecraft.world.item.ItemStack;
 import software.bernie.geckolib.core.animatable.model.CoreGeoBone;
 import software.bernie.geckolib.core.animation.AnimationState;
-import software.bernie.geckolib.model.GeoModel;
 
-public class SentinelItemModel extends GeoModel<SentinelItem> {
+public class SentinelItemModel extends CustomGunModel<SentinelItem> {
 
     @Override
     public ResourceLocation getAnimationResource(SentinelItem animatable) {
@@ -33,17 +31,17 @@ public class SentinelItemModel extends GeoModel<SentinelItem> {
     }
 
     @Override
-    public void setCustomAnimations(SentinelItem animatable, long instanceId, AnimationState animationState) {
+    public void setCustomAnimations(SentinelItem animatable, long instanceId, AnimationState<SentinelItem> animationState) {
+        Player player = Minecraft.getInstance().player;
+        if (player == null) return;
+        ItemStack stack = player.getMainHandItem();
+        if (shouldCancelRender(stack, animationState)) return;
+
         CoreGeoBone gun = getAnimationProcessor().getBone("bone");
         CoreGeoBone shen = getAnimationProcessor().getBone("shen");
         CoreGeoBone scope = getAnimationProcessor().getBone("scope2");
         CoreGeoBone ammo = getAnimationProcessor().getBone("ammobar");
         CoreGeoBone cb = getAnimationProcessor().getBone("chamber2");
-
-        Player player = Minecraft.getInstance().player;
-        if (player == null) return;
-        ItemStack stack = player.getMainHandItem();
-        if (!(stack.getItem() instanceof GunItem)) return;
 
         float times = 0.6f * (float) Math.min(Minecraft.getInstance().getDeltaFrameTime(), 0.8);
         double zt = ClientEventHandler.zoomTime;
@@ -63,9 +61,6 @@ public class SentinelItemModel extends GeoModel<SentinelItem> {
         scope.setScaleZ(1f - (0.8f * (float) zp));
         cb.setRotZ((float) (cb.getRotZ() + times * 10 * ClientEventHandler.chamberRot));
 
-        CoreGeoBone holo = getAnimationProcessor().getBone("holo");
-        holo.setPosY(0.09f);
-
         shen.setPosX((float) (0.95f * ClientEventHandler.recoilHorizon * fpz * fp));
         shen.setPosY((float) (0.4f * fp + 0.44f * fr));
         shen.setPosZ((float) (3.325 * fp + 0.34f * fr + 2.35 * fpz));
@@ -81,11 +76,6 @@ public class SentinelItemModel extends GeoModel<SentinelItem> {
         shen.setRotZ((float) (shen.getRotZ() * (1 - 0.65 * zt)));
 
         CrossHairOverlay.gunRot = shen.getRotZ();
-
-        CoreGeoBone charge = getAnimationProcessor().getBone("charge");
-
-        charge.setRotZ(charge.getRotZ() + times * 0.5f);
-
         ClientEventHandler.gunRootMove(getAnimationProcessor());
 
         if (GunData.from(stack).ammo.get() <= 5) {
@@ -109,6 +99,6 @@ public class SentinelItemModel extends GeoModel<SentinelItem> {
             camera.setRotY(numR * camera.getRotY());
             camera.setRotZ(numR * camera.getRotZ());
         }
-        ClientEventHandler.shake(Mth.RAD_TO_DEG * camera.getRotX(), Mth.RAD_TO_DEG * camera.getRotY(), Mth.RAD_TO_DEG * camera.getRotZ());
+        ClientEventHandler.handleReloadShake(Mth.RAD_TO_DEG * camera.getRotX(), Mth.RAD_TO_DEG * camera.getRotY(), Mth.RAD_TO_DEG * camera.getRotZ());
     }
 }

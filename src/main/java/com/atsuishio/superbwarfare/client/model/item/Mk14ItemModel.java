@@ -3,10 +3,9 @@ package com.atsuishio.superbwarfare.client.model.item;
 import com.atsuishio.superbwarfare.Mod;
 import com.atsuishio.superbwarfare.client.AnimationHelper;
 import com.atsuishio.superbwarfare.client.overlay.CrossHairOverlay;
+import com.atsuishio.superbwarfare.data.gun.GunData;
+import com.atsuishio.superbwarfare.data.gun.value.AttachmentType;
 import com.atsuishio.superbwarfare.event.ClientEventHandler;
-import com.atsuishio.superbwarfare.item.gun.GunItem;
-import com.atsuishio.superbwarfare.item.gun.data.GunData;
-import com.atsuishio.superbwarfare.item.gun.data.value.AttachmentType;
 import com.atsuishio.superbwarfare.item.gun.rifle.Mk14Item;
 import net.minecraft.client.Minecraft;
 import net.minecraft.resources.ResourceLocation;
@@ -15,11 +14,10 @@ import net.minecraft.world.entity.player.Player;
 import net.minecraft.world.item.ItemStack;
 import software.bernie.geckolib.core.animatable.model.CoreGeoBone;
 import software.bernie.geckolib.core.animation.AnimationState;
-import software.bernie.geckolib.model.GeoModel;
 
 import static com.atsuishio.superbwarfare.event.ClientEventHandler.isProne;
 
-public class Mk14ItemModel extends GeoModel<Mk14Item> {
+public class Mk14ItemModel extends CustomGunModel<Mk14Item> {
 
     public static float fireRotY = 0f;
     public static float fireRotZ = 0f;
@@ -27,30 +25,30 @@ public class Mk14ItemModel extends GeoModel<Mk14Item> {
 
     @Override
     public ResourceLocation getAnimationResource(Mk14Item animatable) {
-        return Mod.loc("animations/mk14ebr.animation.json");
+        return Mod.loc("animations/mk_14.animation.json");
     }
 
     @Override
     public ResourceLocation getModelResource(Mk14Item animatable) {
-        return Mod.loc("geo/mk14ebr.geo.json");
+        return Mod.loc("geo/mk_14.geo.json");
     }
 
     @Override
     public ResourceLocation getTextureResource(Mk14Item animatable) {
-        return Mod.loc("textures/item/mk14.png");
+        return Mod.loc("textures/item/mk_14.png");
     }
 
     @Override
-    public void setCustomAnimations(Mk14Item animatable, long instanceId, AnimationState animationState) {
+    public void setCustomAnimations(Mk14Item animatable, long instanceId, AnimationState<Mk14Item> animationState) {
+        Player player = Minecraft.getInstance().player;
+        if (player == null) return;
+        ItemStack stack = player.getMainHandItem();
+        if (shouldCancelRender(stack, animationState)) return;
+
         CoreGeoBone gun = getAnimationProcessor().getBone("bones");
         CoreGeoBone action = getAnimationProcessor().getBone("action");
         CoreGeoBone scope2 = getAnimationProcessor().getBone("Scope2");
         CoreGeoBone scope3 = getAnimationProcessor().getBone("Scope3");
-
-        Player player = Minecraft.getInstance().player;
-        if (player == null) return;
-        ItemStack stack = player.getMainHandItem();
-        if (!(stack.getItem() instanceof GunItem)) return;
 
         float times = 0.6f * (float) Math.min(Minecraft.getInstance().getDeltaFrameTime(), 0.8);
         double zt = ClientEventHandler.zoomTime;
@@ -145,7 +143,7 @@ public class Mk14ItemModel extends GeoModel<Mk14Item> {
         r.setRotX(rotXBipod * Mth.DEG_TO_RAD);
 
         AnimationHelper.handleReloadShakeAnimation(stack, main, camera, numR, numP);
-        ClientEventHandler.shake(Mth.RAD_TO_DEG * camera.getRotX(), Mth.RAD_TO_DEG * camera.getRotY(), Mth.RAD_TO_DEG * camera.getRotZ());
+        ClientEventHandler.handleReloadShake(Mth.RAD_TO_DEG * camera.getRotX(), Mth.RAD_TO_DEG * camera.getRotY(), Mth.RAD_TO_DEG * camera.getRotZ());
         AnimationHelper.handleShellsAnimation(getAnimationProcessor(), 1.2f, 0.55f);
 
         CoreGeoBone shell = getAnimationProcessor().getBone("shell");

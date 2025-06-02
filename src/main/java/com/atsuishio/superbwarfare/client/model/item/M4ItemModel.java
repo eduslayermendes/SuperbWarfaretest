@@ -3,10 +3,9 @@ package com.atsuishio.superbwarfare.client.model.item;
 import com.atsuishio.superbwarfare.Mod;
 import com.atsuishio.superbwarfare.client.AnimationHelper;
 import com.atsuishio.superbwarfare.client.overlay.CrossHairOverlay;
+import com.atsuishio.superbwarfare.data.gun.GunData;
+import com.atsuishio.superbwarfare.data.gun.value.AttachmentType;
 import com.atsuishio.superbwarfare.event.ClientEventHandler;
-import com.atsuishio.superbwarfare.item.gun.GunItem;
-import com.atsuishio.superbwarfare.item.gun.data.GunData;
-import com.atsuishio.superbwarfare.item.gun.data.value.AttachmentType;
 import com.atsuishio.superbwarfare.item.gun.rifle.M4Item;
 import net.minecraft.client.Minecraft;
 import net.minecraft.resources.ResourceLocation;
@@ -15,11 +14,10 @@ import net.minecraft.world.entity.player.Player;
 import net.minecraft.world.item.ItemStack;
 import software.bernie.geckolib.core.animatable.model.CoreGeoBone;
 import software.bernie.geckolib.core.animation.AnimationState;
-import software.bernie.geckolib.model.GeoModel;
 
 import static com.atsuishio.superbwarfare.event.ClientEventHandler.isProne;
 
-public class M4ItemModel extends GeoModel<M4Item> {
+public class M4ItemModel extends CustomGunModel<M4Item> {
 
     public static float posYAlt = 0.5625f;
     public static float scaleZAlt = 0.88f;
@@ -31,40 +29,36 @@ public class M4ItemModel extends GeoModel<M4Item> {
 
     @Override
     public ResourceLocation getAnimationResource(M4Item animatable) {
-        return Mod.loc("animations/m4.animation.json");
+        return Mod.loc("animations/m_4.animation.json");
     }
 
     @Override
     public ResourceLocation getModelResource(M4Item animatable) {
-        return Mod.loc("geo/m4.geo.json");
+        return Mod.loc("geo/m_4.geo.json");
     }
 
     @Override
     public ResourceLocation getTextureResource(M4Item animatable) {
-        return Mod.loc("textures/item/m4.png");
+        return Mod.loc("textures/item/m_4.png");
     }
 
     @Override
-    public void setCustomAnimations(M4Item animatable, long instanceId, AnimationState animationState) {
+    public void setCustomAnimations(M4Item animatable, long instanceId, AnimationState<M4Item> animationState) {
+        Player player = Minecraft.getInstance().player;
+        if (player == null) return;
+        ItemStack stack = player.getMainHandItem();
+        if (shouldCancelRender(stack, animationState)) return;
+
         CoreGeoBone gun = getAnimationProcessor().getBone("bone");
         CoreGeoBone scope = getAnimationProcessor().getBone("Scope1");
         CoreGeoBone scope2 = getAnimationProcessor().getBone("Scope2");
         CoreGeoBone scope3 = getAnimationProcessor().getBone("Scope3");
-        CoreGeoBone cross1 = getAnimationProcessor().getBone("Cross1");
-        CoreGeoBone cross2 = getAnimationProcessor().getBone("Cross2");
-        CoreGeoBone cross3 = getAnimationProcessor().getBone("Cross3");
         CoreGeoBone lh = getAnimationProcessor().getBone("Lefthand");
-        CoreGeoBone crossAlt = getAnimationProcessor().getBone("CrossAlt");
         CoreGeoBone sight1fold = getAnimationProcessor().getBone("sight1fold");
         CoreGeoBone sight2fold = getAnimationProcessor().getBone("sight2fold");
         CoreGeoBone button = getAnimationProcessor().getBone("button");
         CoreGeoBone button6 = getAnimationProcessor().getBone("button6");
         CoreGeoBone button7 = getAnimationProcessor().getBone("button7");
-
-        Player player = Minecraft.getInstance().player;
-        if (player == null) return;
-        ItemStack stack = player.getMainHandItem();
-        if (!(stack.getItem() instanceof GunItem)) return;
 
         float times = 0.6f * (float) Math.min(Minecraft.getInstance().getDeltaFrameTime(), 0.8);
         double zt = ClientEventHandler.zoomTime;
@@ -146,11 +140,6 @@ public class M4ItemModel extends GeoModel<M4Item> {
         shen.setRotY(fireRotY);
         shen.setRotZ(fireRotZ);
 
-        cross1.setPosY(-0.25f * (float) fpz);
-        cross2.setPosY(-0.1f * (float) fpz);
-        crossAlt.setPosY(-0.2f * (float) fpz);
-        cross3.setPosY(-0.2f * (float) fpz);
-
         shen.setPosX((float) (shen.getPosX() * (1 - 0.1 * zt)));
         shen.setPosY((float) (shen.getPosY() * (-1 + 0.8 * zt)));
         shen.setPosZ((float) (shen.getPosZ() * (1 - 0.1 * zt)));
@@ -182,7 +171,7 @@ public class M4ItemModel extends GeoModel<M4Item> {
         float numP = (float) (1 - 0.92 * zt);
 
         AnimationHelper.handleReloadShakeAnimation(stack, main, camera, numR, numP);
-        ClientEventHandler.shake(Mth.RAD_TO_DEG * camera.getRotX(), Mth.RAD_TO_DEG * camera.getRotY(), Mth.RAD_TO_DEG * camera.getRotZ());
+        ClientEventHandler.handleReloadShake(Mth.RAD_TO_DEG * camera.getRotX(), Mth.RAD_TO_DEG * camera.getRotY(), Mth.RAD_TO_DEG * camera.getRotZ());
         AnimationHelper.handleShellsAnimation(getAnimationProcessor(), 1f, 0.55f);
     }
 }

@@ -3,24 +3,67 @@ package com.atsuishio.superbwarfare.datagen;
 import com.atsuishio.superbwarfare.Mod;
 import com.atsuishio.superbwarfare.init.ModBlocks;
 import com.atsuishio.superbwarfare.init.ModItems;
+import net.minecraft.client.renderer.block.model.BlockModel;
 import net.minecraft.data.PackOutput;
 import net.minecraft.resources.ResourceLocation;
 import net.minecraft.world.item.Item;
+import net.minecraft.world.item.ItemDisplayContext;
 import net.minecraft.world.level.block.Block;
 import net.minecraftforge.client.model.generators.ItemModelBuilder;
 import net.minecraftforge.client.model.generators.ItemModelProvider;
+import net.minecraftforge.client.model.generators.ModelFile;
 import net.minecraftforge.common.data.ExistingFileHelper;
 import net.minecraftforge.registries.ForgeRegistries;
 import net.minecraftforge.registries.RegistryObject;
 
 @SuppressWarnings({"ConstantConditions", "UnusedReturnValue", "SameParameterValue", "unused"})
 public class ModItemModelProvider extends ItemModelProvider {
+
     public ModItemModelProvider(PackOutput output, ExistingFileHelper existingFileHelper) {
         super(output, Mod.MODID, existingFileHelper);
     }
 
     @Override
     protected void registerModels() {
+        // gun
+        gunItem(ModItems.AA_12);
+        gunItem(ModItems.AK_12);
+        gunItem(ModItems.AK_47);
+        gunItem(ModItems.AURELIA_SCEPTRE);
+        gunItem(ModItems.BOCEK);
+        gunItem(ModItems.DEVOTION);
+        gunItem(ModItems.GLOCK_17);
+        gunItem(ModItems.GLOCK_18, "glock_17");
+        gunItem(ModItems.HK_416);
+        gunItem(ModItems.HOMEMADE_SHOTGUN);
+        gunItem(ModItems.HUNTING_RIFLE);
+        gunItem(ModItems.INSIDIOUS);
+        gunItem(ModItems.JAVELIN);
+        gunItem(ModItems.K_98);
+        gunItem(ModItems.M_4);
+        gunItem(ModItems.M_60);
+        gunItem(ModItems.M_79);
+        gunItem(ModItems.M_1911);
+        gunItem(ModItems.M_870);
+        gunItem(ModItems.M_98B);
+        gunItem(ModItems.MARLIN);
+        gunItem(ModItems.MINIGUN);
+        gunItem(ModItems.MK_14);
+        gunItem(ModItems.MOSIN_NAGANT);
+        gunItem(ModItems.MP_443);
+        gunItem(ModItems.NTW_20);
+        gunItem(ModItems.QBZ_95);
+        gunItem(ModItems.RPG);
+        gunItem(ModItems.RPK);
+        gunItem(ModItems.SECONDARY_CATACLYSM);
+        gunItem(ModItems.SENTINEL);
+        gunItem(ModItems.SKS);
+        gunItem(ModItems.SVD);
+        gunItem(ModItems.TASER);
+        gunItem(ModItems.TRACHELIUM);
+        gunItem(ModItems.VECTOR);
+        gunItem(ModItems.MP_5);
+
         simpleItem(ModItems.EMPTY_PERK, "perk/");
 
         simpleItem(ModItems.MORTAR_SHELL);
@@ -39,6 +82,7 @@ public class ModItemModelProvider extends ItemModelProvider {
         simpleItem(ModItems.HEAVY_ARMAMENT_MODULE);
 
         simpleItem(ModItems.TARGET_DEPLOYER);
+        simpleItem(ModItems.DPS_GENERATOR_DEPLOYER);
         simpleItem(ModItems.MORTAR_DEPLOYER);
         simpleItem(ModItems.MORTAR_BARREL);
         simpleItem(ModItems.MORTAR_BASE_PLATE);
@@ -47,6 +91,7 @@ public class ModItemModelProvider extends ItemModelProvider {
         simpleItem(ModItems.MISSILE_ENGINE);
         simpleItem(ModItems.FUSEE);
         simpleItem(ModItems.PRIMER);
+        simpleItem(ModItems.BLU_43_MINE);
         simpleItem(ModItems.AP_HEAD);
         simpleItem(ModItems.HE_HEAD);
         simpleItem(ModItems.CANNON_CORE);
@@ -68,6 +113,7 @@ public class ModItemModelProvider extends ItemModelProvider {
         simpleItem(ModItems.TRANSCRIPT);
         simpleItem(ModItems.RAW_SILVER);
         simpleItem(ModItems.SILVER_INGOT);
+        handheldItem(ModItems.BEAST);
         handheldItem(ModItems.CROWBAR);
         handheldItem(ModItems.DEFUSER);
         simpleItem(ModItems.FIRING_PARAMETERS);
@@ -79,8 +125,10 @@ public class ModItemModelProvider extends ItemModelProvider {
         simpleItem(ModItems.HEAVY_AMMO);
         simpleItem(ModItems.ROCKET_70);
         simpleItem(ModItems.WIRE_GUIDE_MISSILE);
+        simpleItem(ModItems.AGM);
         simpleItem(ModItems.SMALL_SHELL);
         simpleItem(ModItems.SWARM_DRONE);
+        simpleItem(ModItems.MEDIUM_AERIAL_BOMB);
         simpleItem(ModItems.SMALL_BATTERY_PACK);
         simpleItem(ModItems.MEDIUM_BATTERY_PACK);
         simpleItem(ModItems.LARGE_BATTERY_PACK);
@@ -148,12 +196,15 @@ public class ModItemModelProvider extends ItemModelProvider {
         gunBlueprintItem(ModItems.K_98_BLUEPRINT);
         gunBlueprintItem(ModItems.MOSIN_NAGANT_BLUEPRINT);
         gunBlueprintItem(ModItems.JAVELIN_BLUEPRINT);
+        gunBlueprintItem(ModItems.AURELIA_SCEPTRE_BLUEPRINT);
         cannonBlueprintItem(ModItems.MK_42_BLUEPRINT);
         cannonBlueprintItem(ModItems.MLE_1934_BLUEPRINT);
         cannonBlueprintItem(ModItems.ANNIHILATOR_BLUEPRINT);
+        cannonBlueprintItem(ModItems.HPJ_11_BLUEPRINT);
         gunBlueprintItem(ModItems.M_2_HB_BLUEPRINT);
         gunBlueprintItem(ModItems.SECONDARY_CATACLYSM_BLUEPRINT);
         gunBlueprintItem(ModItems.INSIDIOUS_BLUEPRINT);
+        gunBlueprintItem(ModItems.MP_5_BLUEPRINT);
 
         // blocks
         evenSimplerBlockItem(ModBlocks.BARBED_WIRE);
@@ -161,6 +212,8 @@ public class ModItemModelProvider extends ItemModelProvider {
         evenSimplerBlockItem(ModBlocks.REFORGING_TABLE);
         evenSimplerBlockItem(ModBlocks.CHARGING_STATION);
         evenSimplerBlockItem(ModBlocks.CREATIVE_CHARGING_STATION);
+        evenSimplerBlockItem(ModBlocks.VEHICLE_DEPLOYER);
+        evenSimplerBlockItem(ModBlocks.AIRCRAFT_CATAPULT);
     }
 
     private ItemModelBuilder simpleItem(RegistryObject<Item> item) {
@@ -195,5 +248,44 @@ public class ModItemModelProvider extends ItemModelProvider {
     private ItemModelBuilder handheldItem(RegistryObject<Item> item) {
         return withExistingParent(item.getId().getPath(), new ResourceLocation("item/handheld"))
                 .texture("layer0", Mod.loc("item/" + item.getId().getPath()));
+    }
+
+    private ItemModelBuilder gunIcon(RegistryObject<Item> item, String name) {
+        return withExistingParent(item.getId().getPath() + "_icon", new ResourceLocation("item/generated"))
+                .texture("layer0", Mod.loc("item/" + name + "_icon"));
+    }
+
+    private ItemModelBuilder gunBase(RegistryObject<Item> item, String name) {
+        return getBuilder(item.getId().getPath() + "_base")
+                .parent(new ModelFile.UncheckedModelFile(modLoc("displaysettings/" + name + ".item")))
+                .texture("layer0", Mod.loc("item/" + name));
+    }
+
+    private ItemModelBuilder customSeparatedGunModel(RegistryObject<Item> item, String name) {
+        String lod = modLoc("lod/" + name).toString();
+        String base = modLoc("item/" + name + "_base").toString();
+        String icon = modLoc("item/" + name + "_icon").toString();
+
+        return getBuilder(item.getId().getPath())
+                .guiLight(BlockModel.GuiLight.FRONT)
+                .customLoader(CustomSeparateModelBuilder::begin)
+                .base(base)
+//                .perspective(ItemDisplayContext.FIXED, lod)
+//                .perspective(ItemDisplayContext.HEAD, lod)
+//                .perspective(ItemDisplayContext.GROUND, lod)
+//                .perspective(ItemDisplayContext.THIRD_PERSON_RIGHT_HAND, lod)
+//                .perspective(ItemDisplayContext.THIRD_PERSON_LEFT_HAND, lod)
+                .perspective(ItemDisplayContext.GUI, icon)
+                .end();
+    }
+
+    public void gunItem(RegistryObject<Item> item) {
+        this.gunItem(item, item.getId().getPath());
+    }
+
+    public void gunItem(RegistryObject<Item> item, String name) {
+        this.gunIcon(item, name);
+        this.gunBase(item, name);
+        this.customSeparatedGunModel(item, name);
     }
 }

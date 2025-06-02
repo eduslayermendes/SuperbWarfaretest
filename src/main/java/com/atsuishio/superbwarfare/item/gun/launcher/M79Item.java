@@ -2,16 +2,12 @@ package com.atsuishio.superbwarfare.item.gun.launcher;
 
 import com.atsuishio.superbwarfare.Mod;
 import com.atsuishio.superbwarfare.client.PoseTool;
-import com.atsuishio.superbwarfare.client.renderer.item.M79ItemRenderer;
+import com.atsuishio.superbwarfare.client.renderer.gun.M79ItemRenderer;
 import com.atsuishio.superbwarfare.client.tooltip.component.LauncherImageComponent;
-import com.atsuishio.superbwarfare.entity.projectile.GunGrenadeEntity;
+import com.atsuishio.superbwarfare.data.gun.GunData;
 import com.atsuishio.superbwarfare.event.ClientEventHandler;
-import com.atsuishio.superbwarfare.init.ModPerks;
 import com.atsuishio.superbwarfare.init.ModSounds;
 import com.atsuishio.superbwarfare.item.gun.GunItem;
-import com.atsuishio.superbwarfare.item.gun.data.GunData;
-import com.atsuishio.superbwarfare.perk.Perk;
-import com.atsuishio.superbwarfare.perk.PerkHelper;
 import com.atsuishio.superbwarfare.tools.ParticleTool;
 import net.minecraft.client.Minecraft;
 import net.minecraft.client.model.HumanoidModel;
@@ -31,41 +27,39 @@ import net.minecraft.world.item.ItemStack;
 import net.minecraft.world.item.Rarity;
 import net.minecraftforge.client.extensions.common.IClientItemExtensions;
 import org.jetbrains.annotations.NotNull;
-import software.bernie.geckolib.animatable.GeoItem;
-import software.bernie.geckolib.core.animatable.instance.AnimatableInstanceCache;
+import software.bernie.geckolib.constant.DataTickets;
 import software.bernie.geckolib.core.animation.AnimatableManager;
 import software.bernie.geckolib.core.animation.AnimationController;
 import software.bernie.geckolib.core.animation.AnimationState;
 import software.bernie.geckolib.core.animation.RawAnimation;
 import software.bernie.geckolib.core.object.PlayState;
-import software.bernie.geckolib.util.GeckoLibUtil;
 
 import java.util.Optional;
 import java.util.Set;
 import java.util.function.Consumer;
 
-public class M79Item extends GunItem implements GeoItem {
-
-    private final AnimatableInstanceCache cache = GeckoLibUtil.createInstanceCache(this);
-    public static ItemDisplayContext transformType;
-
-    @Override
-    public Set<SoundEvent> getReloadSound() {
-        return Set.of(ModSounds.M_79_RELOAD_EMPTY.get());
-    }
+public class M79Item extends GunItem {
 
     public M79Item() {
         super(new Item.Properties().stacksTo(1).fireResistant().rarity(Rarity.RARE));
     }
 
     @Override
+    public Set<SoundEvent> getReloadSound() {
+        return Set.of(ModSounds.M_79_RELOAD_EMPTY.get());
+    }
+
+    @Override
     public void initializeClient(@NotNull Consumer<IClientItemExtensions> consumer) {
         super.initializeClient(consumer);
         consumer.accept(new IClientItemExtensions() {
-            private final BlockEntityWithoutLevelRenderer renderer = new M79ItemRenderer();
+            private BlockEntityWithoutLevelRenderer renderer;
 
             @Override
             public BlockEntityWithoutLevelRenderer getCustomRenderer() {
+                if (renderer == null) {
+                    renderer = new M79ItemRenderer();
+                }
                 return renderer;
             }
 
@@ -76,35 +70,28 @@ public class M79Item extends GunItem implements GeoItem {
         });
     }
 
-    public void getTransformType(ItemDisplayContext type) {
-        transformType = type;
-    }
-
     private PlayState idlePredicate(AnimationState<M79Item> event) {
         LocalPlayer player = Minecraft.getInstance().player;
         if (player == null) return PlayState.STOP;
         ItemStack stack = player.getMainHandItem();
         if (!(stack.getItem() instanceof GunItem)) return PlayState.STOP;
-        var data = GunData.from(stack);
+        if (event.getData(DataTickets.ITEM_RENDER_PERSPECTIVE) != ItemDisplayContext.FIRST_PERSON_RIGHT_HAND)
+            return event.setAndContinue(RawAnimation.begin().thenLoop("animation.m_79.idle"));
 
+        var data = GunData.from(stack);
         if (data.reload.empty()) {
-            return event.setAndContinue(RawAnimation.begin().thenPlay("animation.m79.reload"));
+            return event.setAndContinue(RawAnimation.begin().thenPlay("animation.m_79.reload"));
         }
 
         if (player.isSprinting() && player.onGround() && ClientEventHandler.cantSprint == 0 && ClientEventHandler.drawTime < 0.01) {
             if (ClientEventHandler.tacticalSprint) {
-                return event.setAndContinue(RawAnimation.begin().thenLoop("animation.m79.run_fast"));
+                return event.setAndContinue(RawAnimation.begin().thenLoop("animation.m_79.run_fast"));
             } else {
-                return event.setAndContinue(RawAnimation.begin().thenLoop("animation.m79.run"));
+                return event.setAndContinue(RawAnimation.begin().thenLoop("animation.m_79.run"));
             }
         }
 
-        return event.setAndContinue(RawAnimation.begin().thenLoop("animation.m79.idle"));
-    }
-
-    @Override
-    public AnimatableInstanceCache getAnimatableInstanceCache() {
-        return this.cache;
+        return event.setAndContinue(RawAnimation.begin().thenLoop("animation.m_79.idle"));
     }
 
     @Override
@@ -115,7 +102,7 @@ public class M79Item extends GunItem implements GeoItem {
 
     @Override
     public ResourceLocation getGunIcon() {
-        return Mod.loc("textures/gun_icon/m79_icon.png");
+        return Mod.loc("textures/gun_icon/m_79_icon.png");
     }
 
     @Override
@@ -124,18 +111,8 @@ public class M79Item extends GunItem implements GeoItem {
     }
 
     @Override
-    public boolean canApplyPerk(Perk perk) {
-        return PerkHelper.LAUNCHER_PERKS.test(perk) || perk == ModPerks.MICRO_MISSILE.get();
-    }
-
-    @Override
     public @NotNull Optional<TooltipComponent> getTooltipImage(@NotNull ItemStack pStack) {
         return Optional.of(new LauncherImageComponent(pStack));
-    }
-
-    @Override
-    public boolean isMagazineReload(ItemStack stack) {
-        return true;
     }
 
     @Override
@@ -146,41 +123,14 @@ public class M79Item extends GunItem implements GeoItem {
     @Override
     public boolean shootBullet(Player player, GunData data, double spread, boolean zoom) {
         if (data.reloading()) return false;
+        if (!super.shootBullet(player, data, spread, zoom)) return false;
 
         if (player.level() instanceof ServerLevel serverLevel) {
-            GunGrenadeEntity gunGrenadeEntity = new GunGrenadeEntity(player, serverLevel,
-                    (float) data.damage(),
-                    (float) data.explosionDamage(),
-                    (float) data.explosionRadius());
-
-            var dmgPerk = data.perk.get(Perk.Type.DAMAGE);
-            if (dmgPerk == ModPerks.MONSTER_HUNTER.get()) {
-                int perkLevel = data.perk.getLevel(dmgPerk);
-                gunGrenadeEntity.setMonsterMultiplier(0.1f + 0.1f * perkLevel);
-            }
-
-            gunGrenadeEntity.setNoGravity(data.perk.get(Perk.Type.AMMO) == ModPerks.MICRO_MISSILE.get());
-
-            float velocity = (float) data.velocity();
-            int perkLevel = data.perk.getLevel(ModPerks.MICRO_MISSILE);
-            if (perkLevel > 0) {
-                gunGrenadeEntity.setExplosionRadius((float) data.explosionRadius() * 0.5f);
-                gunGrenadeEntity.setDamage((float) data.explosionDamage() * (1.1f + perkLevel * 0.1f));
-                velocity *= 1.2f;
-            }
-
-            gunGrenadeEntity.setPos(player.getX(), player.getEyeY() - 0.1, player.getZ());
-            gunGrenadeEntity.shoot(player.getLookAngle().x, player.getLookAngle().y, player.getLookAngle().z, velocity,
-                    (float) (zoom ? 0.1 : spread));
-            serverLevel.addFreshEntity(gunGrenadeEntity);
-
             ParticleTool.sendParticle(serverLevel, ParticleTypes.CLOUD, player.getX() + 1.8 * player.getLookAngle().x,
                     player.getY() + player.getBbHeight() - 0.1 + 1.8 * player.getLookAngle().y,
                     player.getZ() + 1.8 * player.getLookAngle().z,
                     4, 0.1, 0.1, 0.1, 0.002, true);
         }
-
         return true;
     }
-
 }

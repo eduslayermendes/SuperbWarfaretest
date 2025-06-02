@@ -3,10 +3,10 @@ package com.atsuishio.superbwarfare.client.model.item;
 import com.atsuishio.superbwarfare.Mod;
 import com.atsuishio.superbwarfare.client.AnimationHelper;
 import com.atsuishio.superbwarfare.client.overlay.CrossHairOverlay;
+import com.atsuishio.superbwarfare.data.gun.FireMode;
+import com.atsuishio.superbwarfare.data.gun.GunData;
+import com.atsuishio.superbwarfare.data.gun.value.AttachmentType;
 import com.atsuishio.superbwarfare.event.ClientEventHandler;
-import com.atsuishio.superbwarfare.item.gun.GunItem;
-import com.atsuishio.superbwarfare.item.gun.data.GunData;
-import com.atsuishio.superbwarfare.item.gun.data.value.AttachmentType;
 import com.atsuishio.superbwarfare.item.gun.rifle.Hk416Item;
 import net.minecraft.client.Minecraft;
 import net.minecraft.resources.ResourceLocation;
@@ -15,11 +15,10 @@ import net.minecraft.world.entity.player.Player;
 import net.minecraft.world.item.ItemStack;
 import software.bernie.geckolib.core.animatable.model.CoreGeoBone;
 import software.bernie.geckolib.core.animation.AnimationState;
-import software.bernie.geckolib.model.GeoModel;
 
 import static com.atsuishio.superbwarfare.event.ClientEventHandler.isProne;
 
-public class Hk416ItemModel extends GeoModel<Hk416Item> {
+public class Hk416ItemModel extends CustomGunModel<Hk416Item> {
 
     public static float fireRotY = 0f;
     public static float fireRotZ = 0f;
@@ -27,34 +26,31 @@ public class Hk416ItemModel extends GeoModel<Hk416Item> {
 
     @Override
     public ResourceLocation getAnimationResource(Hk416Item animatable) {
-        return Mod.loc("animations/m4.animation.json");
+        return Mod.loc("animations/m_4.animation.json");
     }
 
     @Override
     public ResourceLocation getModelResource(Hk416Item animatable) {
-        return Mod.loc("geo/hk416.geo.json");
+        return Mod.loc("geo/hk_416.geo.json");
     }
 
     @Override
     public ResourceLocation getTextureResource(Hk416Item animatable) {
-        return Mod.loc("textures/item/hk416.png");
+        return Mod.loc("textures/item/hk_416.png");
     }
 
     @Override
-    public void setCustomAnimations(Hk416Item animatable, long instanceId, AnimationState animationState) {
+    public void setCustomAnimations(Hk416Item animatable, long instanceId, AnimationState<Hk416Item> animationState) {
+        Player player = Minecraft.getInstance().player;
+        if (player == null) return;
+        ItemStack stack = player.getMainHandItem();
+        if (shouldCancelRender(stack, animationState)) return;
+
         CoreGeoBone gun = getAnimationProcessor().getBone("bone");
         CoreGeoBone scope = getAnimationProcessor().getBone("Scope1");
         CoreGeoBone scope2 = getAnimationProcessor().getBone("Scope2");
         CoreGeoBone scope3 = getAnimationProcessor().getBone("Scope3");
-        CoreGeoBone cross1 = getAnimationProcessor().getBone("Cross1");
-        CoreGeoBone cross2 = getAnimationProcessor().getBone("Cross2");
-        CoreGeoBone cross3 = getAnimationProcessor().getBone("Cross3");
         CoreGeoBone kuaimanji = getAnimationProcessor().getBone("kuaimanji");
-
-        Player player = Minecraft.getInstance().player;
-        if (player == null) return;
-        ItemStack stack = player.getMainHandItem();
-        if (!(stack.getItem() instanceof GunItem)) return;
 
         float times = 0.6f * (float) Math.min(Minecraft.getInstance().getDeltaFrameTime(), 0.8);
 
@@ -79,14 +75,14 @@ public class Hk416ItemModel extends GeoModel<Hk416Item> {
             case 0 -> 0.2f;
             case 1 -> 0.4f;
             case 2 -> 0.8f;
-            case 3 -> 0.78f;
+            case 3 -> 0.9f;
             default -> 0f;
         };
         float posZ = switch (type) {
             case 0 -> 3f;
             case 1 -> 3.5f;
             case 2 -> 7.4f;
-            case 3 -> 6.8f;
+            case 3 -> 7.5f;
             default -> 0f;
         };
 
@@ -131,19 +127,15 @@ public class Hk416ItemModel extends GeoModel<Hk416Item> {
 
         CrossHairOverlay.gunRot = shen.getRotZ();
 
-        cross1.setPosY(-0.75f * (float) fpz);
-        cross2.setPosY(-0.7f * (float) fpz);
-        cross3.setPosY(-0.2f * (float) fpz);
-
         CoreGeoBone l = getAnimationProcessor().getBone("l");
         CoreGeoBone r = getAnimationProcessor().getBone("r");
         rotXBipod = Mth.lerp(1.5f * times, rotXBipod, isProne(player) ? -90 : 0);
         l.setRotX(rotXBipod * Mth.DEG_TO_RAD);
         r.setRotX(rotXBipod * Mth.DEG_TO_RAD);
 
-        int mode = GunData.from(stack).fireMode.get();
+        var mode = GunData.from(stack).fireMode.get();
 
-        kuaimanji.setRotX(mode == 2 ? 90 * Mth.DEG_TO_RAD : 0);
+        kuaimanji.setRotX(mode == FireMode.AUTO ? 90 * Mth.DEG_TO_RAD : 0);
 
         ClientEventHandler.gunRootMove(getAnimationProcessor());
 
@@ -154,7 +146,7 @@ public class Hk416ItemModel extends GeoModel<Hk416Item> {
         float numP = (float) (1 - 0.92 * zt);
 
         AnimationHelper.handleReloadShakeAnimation(stack, main, camera, numR, numP);
-        ClientEventHandler.shake(Mth.RAD_TO_DEG * camera.getRotX(), Mth.RAD_TO_DEG * camera.getRotY(), Mth.RAD_TO_DEG * camera.getRotZ());
+        ClientEventHandler.handleReloadShake(Mth.RAD_TO_DEG * camera.getRotX(), Mth.RAD_TO_DEG * camera.getRotY(), Mth.RAD_TO_DEG * camera.getRotZ());
         AnimationHelper.handleShellsAnimation(getAnimationProcessor(), 1f, 0.55f);
     }
 }

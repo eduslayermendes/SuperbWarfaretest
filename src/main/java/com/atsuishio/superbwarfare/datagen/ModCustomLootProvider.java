@@ -64,6 +64,7 @@ public class ModCustomLootProvider implements LootTableSubProvider {
                                 new ItemEntry(ModItems.QBZ_95_BLUEPRINT.get(), 15),
                                 new ItemEntry(ModItems.RPG_BLUEPRINT.get(), 15),
                                 new ItemEntry(ModItems.M_2_HB_BLUEPRINT.get(), 15),
+                                new ItemEntry(ModItems.MP_5_BLUEPRINT.get(), 15),
 
                                 new ItemEntry(ModItems.TRACHELIUM_BLUEPRINT.get(), 1),
                                 new ItemEntry(ModItems.HUNTING_RIFLE_BLUEPRINT.get(), 1),
@@ -138,8 +139,10 @@ public class ModCustomLootProvider implements LootTableSubProvider {
                                 new ItemEntry(ModItems.SENTINEL_BLUEPRINT.get(), 3),
                                 new ItemEntry(ModItems.JAVELIN_BLUEPRINT.get(), 3),
                                 new ItemEntry(ModItems.SECONDARY_CATACLYSM_BLUEPRINT.get(), 3),
+                                new ItemEntry(ModItems.AURELIA_SCEPTRE_BLUEPRINT.get(), 2),
                                 new ItemEntry(ModItems.MK_42_BLUEPRINT.get(), 3),
-                                new ItemEntry(ModItems.MLE_1934_BLUEPRINT.get(), 3),
+                                new ItemEntry(ModItems.MLE_1934_BLUEPRINT.get(), 2),
+                                new ItemEntry(ModItems.HPJ_11_BLUEPRINT.get(), 2),
                                 new ItemEntry(ModItems.ANNIHILATOR_BLUEPRINT.get(), 1)
                         ))
                         .withPool(multiItems(2, 0,
@@ -184,8 +187,10 @@ public class ModCustomLootProvider implements LootTableSubProvider {
                                 new ItemEntry(ModItems.SENTINEL_BLUEPRINT.get(), 20),
                                 new ItemEntry(ModItems.JAVELIN_BLUEPRINT.get(), 15),
                                 new ItemEntry(ModItems.SECONDARY_CATACLYSM_BLUEPRINT.get(), 15),
+                                new ItemEntry(ModItems.AURELIA_SCEPTRE_BLUEPRINT.get(), 10),
                                 new ItemEntry(ModItems.MK_42_BLUEPRINT.get(), 10),
                                 new ItemEntry(ModItems.MLE_1934_BLUEPRINT.get(), 10),
+                                new ItemEntry(ModItems.HPJ_11_BLUEPRINT.get(), 5),
                                 new ItemEntry(ModItems.ANNIHILATOR_BLUEPRINT.get(), 5)
                         ))
                         .withPool(multiItems(2, 0,

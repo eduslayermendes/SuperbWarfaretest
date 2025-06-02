@@ -3,7 +3,6 @@ package com.atsuishio.superbwarfare.client.model.item;
 import com.atsuishio.superbwarfare.Mod;
 import com.atsuishio.superbwarfare.client.overlay.CrossHairOverlay;
 import com.atsuishio.superbwarfare.event.ClientEventHandler;
-import com.atsuishio.superbwarfare.item.gun.GunItem;
 import com.atsuishio.superbwarfare.item.gun.special.BocekItem;
 import net.minecraft.client.Minecraft;
 import net.minecraft.resources.ResourceLocation;
@@ -12,9 +11,9 @@ import net.minecraft.world.entity.player.Player;
 import net.minecraft.world.item.ItemStack;
 import software.bernie.geckolib.core.animatable.model.CoreGeoBone;
 import software.bernie.geckolib.core.animation.AnimationState;
-import software.bernie.geckolib.model.GeoModel;
 
-public class BocekItemModel extends GeoModel<BocekItem> {
+public class BocekItemModel extends CustomGunModel<BocekItem> {
+
     public static float rightHandPosZ;
 
     @Override
@@ -33,17 +32,17 @@ public class BocekItemModel extends GeoModel<BocekItem> {
     }
 
     @Override
-    public void setCustomAnimations(BocekItem animatable, long instanceId, AnimationState animationState) {
+    public void setCustomAnimations(BocekItem animatable, long instanceId, AnimationState<BocekItem> animationState) {
+        Player player = Minecraft.getInstance().player;
+        if (player == null) return;
+        ItemStack stack = player.getMainHandItem();
+        if (shouldCancelRender(stack, animationState)) return;
+
         CoreGeoBone gun = getAnimationProcessor().getBone("bone");
         CoreGeoBone shen = getAnimationProcessor().getBone("shen");
         CoreGeoBone dRing = getAnimationProcessor().getBone("D_ring");
         CoreGeoBone rightHand = getAnimationProcessor().getBone("safang");
         CoreGeoBone leftHand = getAnimationProcessor().getBone("lh");
-
-        Player player = Minecraft.getInstance().player;
-        if (player == null) return;
-        ItemStack stack = player.getMainHandItem();
-        if (!(stack.getItem() instanceof GunItem)) return;
 
         float times = Minecraft.getInstance().getPartialTick();
 
@@ -80,13 +79,19 @@ public class BocekItemModel extends GeoModel<BocekItem> {
         wingControl(wing1Root, m);
         wingControl(wing2Root, m);
 
+        CoreGeoBone shake = getAnimationProcessor().getBone("shake");
+
+        shake.setPosX((float) (shake.getPosX() * pp));
+        shake.setPosY((float) (shake.getPosY() * pp));
+        shake.setPosZ((float) (shake.getPosZ() * pp));
+
         rightHand.setPosZ(rightHandPosZ);
 
         CrossHairOverlay.gunRot = shen.getRotZ();
         ClientEventHandler.gunRootMove(getAnimationProcessor());
 
         CoreGeoBone camera = getAnimationProcessor().getBone("camera");
-        ClientEventHandler.shake(Mth.RAD_TO_DEG * camera.getRotX(), Mth.RAD_TO_DEG * camera.getRotY(), Mth.RAD_TO_DEG * camera.getRotZ());
+        ClientEventHandler.handleReloadShake(Mth.RAD_TO_DEG * camera.getRotX(), Mth.RAD_TO_DEG * camera.getRotY(), Mth.RAD_TO_DEG * camera.getRotZ());
     }
 
     public static void wingControl(CoreGeoBone coreGeoBone, float m) {
@@ -94,5 +99,4 @@ public class BocekItemModel extends GeoModel<BocekItem> {
         coreGeoBone.setRotY(coreGeoBone.getRotY() * m);
         coreGeoBone.setRotZ(coreGeoBone.getRotZ() * m);
     }
-
 }

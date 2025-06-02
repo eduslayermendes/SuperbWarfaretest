@@ -1,14 +1,13 @@
 package com.atsuishio.superbwarfare.mixins;
 
 import com.atsuishio.superbwarfare.config.client.VehicleControlConfig;
-import com.atsuishio.superbwarfare.entity.vehicle.*;
-import com.atsuishio.superbwarfare.entity.vehicle.base.CannonEntity;
+import com.atsuishio.superbwarfare.data.gun.GunData;
+import com.atsuishio.superbwarfare.entity.vehicle.base.AirEntity;
 import com.atsuishio.superbwarfare.entity.vehicle.base.VehicleEntity;
 import com.atsuishio.superbwarfare.event.ClientEventHandler;
 import com.atsuishio.superbwarfare.init.ModItems;
 import com.atsuishio.superbwarfare.init.ModMobEffects;
 import com.atsuishio.superbwarfare.item.gun.GunItem;
-import com.atsuishio.superbwarfare.item.gun.data.GunData;
 import net.minecraft.client.CameraType;
 import net.minecraft.client.Minecraft;
 import net.minecraft.client.MouseHandler;
@@ -21,7 +20,6 @@ import org.spongepowered.asm.mixin.Unique;
 import org.spongepowered.asm.mixin.injection.At;
 import org.spongepowered.asm.mixin.injection.ModifyVariable;
 
-import static com.atsuishio.superbwarfare.event.ClientEventHandler.droneFovLerp;
 import static com.atsuishio.superbwarfare.event.ClientEventHandler.isFreeCam;
 
 /**
@@ -57,43 +55,15 @@ public class MouseHandlerMixin {
         }
 
         if (stack.is(ModItems.MONITOR.get()) && stack.getOrCreateTag().getBoolean("Using") && stack.getOrCreateTag().getBoolean("Linked")) {
-            return 0.33 / (1 + 0.08 * (droneFovLerp - 1));
+            return 0;
         }
 
         if (isFreeCam(player)) {
             return 0;
         }
 
-        if (player.getVehicle() instanceof CannonEntity) {
-            return ClientEventHandler.zoomVehicle ? 0.15 : 0.3;
-        }
-
-        if (player.getVehicle() instanceof Lav150Entity) {
-            return ClientEventHandler.zoomVehicle ? 0.23 : 0.3;
-        }
-
-        if (player.getVehicle() instanceof Bmp2Entity) {
-            return ClientEventHandler.zoomVehicle ? 0.22 : 0.27;
-        }
-
-        if (player.getVehicle() instanceof Yx100Entity yx100) {
-            if (player == yx100.getFirstPassenger()) {
-                return ClientEventHandler.zoomVehicle ? 0.17 : 0.22;
-            } else if (player == yx100.getNthEntity(1)) {
-                return ClientEventHandler.zoomVehicle ? 0.25 : 0.35;
-            }
-        }
-
-        if (player.getVehicle() instanceof PrismTankEntity) {
-            return ClientEventHandler.zoomVehicle ? 0.26 : 0.33;
-        }
-
-        if (player.getVehicle() instanceof Ah6Entity ah6Entity && !ah6Entity.onGround() && ah6Entity.getFirstPassenger() == player) {
-            return 0.33;
-        }
-
-        if (player.getVehicle() instanceof Tom6Entity) {
-            return 0.3;
+        if (player.getVehicle() instanceof VehicleEntity vehicle) {
+            return vehicle.getSensitivity(original, ClientEventHandler.zoomVehicle, vehicle.getSeatIndex(player), vehicle.onGround());
         }
 
         return original;
@@ -104,13 +74,11 @@ public class MouseHandlerMixin {
         Minecraft mc = Minecraft.getInstance();
         Player player = mc.player;
 
+        // 反转鼠标
+
         if (player == null) return i;
 
-        if (player.getVehicle() instanceof Ah6Entity ah6Entity && ah6Entity.getFirstPassenger() == player) {
-            return VehicleControlConfig.INVERT_AIRCRAFT_CONTROL.get() ? -i : i;
-        }
-
-        if (player.getVehicle() instanceof Tom6Entity tom6 && tom6.getFirstPassenger() == player) {
+        if (player.getVehicle() instanceof VehicleEntity vehicle && vehicle instanceof AirEntity && vehicle.getFirstPassenger() == player) {
             return VehicleControlConfig.INVERT_AIRCRAFT_CONTROL.get() ? -i : i;
         }
         return i;

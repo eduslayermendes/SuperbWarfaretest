@@ -3,12 +3,12 @@ package com.atsuishio.superbwarfare.client.overlay;
 import com.atsuishio.superbwarfare.Mod;
 import com.atsuishio.superbwarfare.client.ClickHandler;
 import com.atsuishio.superbwarfare.config.client.DisplayConfig;
+import com.atsuishio.superbwarfare.data.gun.GunData;
 import com.atsuishio.superbwarfare.entity.vehicle.Ah6Entity;
 import com.atsuishio.superbwarfare.entity.vehicle.base.ArmedVehicleEntity;
 import com.atsuishio.superbwarfare.event.ClientEventHandler;
 import com.atsuishio.superbwarfare.init.ModItems;
 import com.atsuishio.superbwarfare.init.ModTags;
-import com.atsuishio.superbwarfare.item.gun.data.GunData;
 import com.atsuishio.superbwarfare.perk.AmmoPerk;
 import com.atsuishio.superbwarfare.perk.Perk;
 import com.mojang.blaze3d.platform.GlStateManager;
@@ -85,15 +85,11 @@ public class CrossHairOverlay implements IGuiOverlay {
         float finPosX = ((screenWidth - finLength) / 2) + moveX;
         float finPosY = ((screenHeight - finLength) / 2) + moveY;
 
-        if (shouldRenderCrossHair(player) || (Minecraft.getInstance().options.getCameraType() == CameraType.FIRST_PERSON && stack.is(ModItems.MINIGUN.get())) || (Minecraft.getInstance().options.getCameraType() == CameraType.THIRD_PERSON_BACK && (ClientEventHandler.zoomTime > 0 || ClientEventHandler.bowPullPos > 0))) {
+        if (shouldRenderCrossHair(player) || (Minecraft.getInstance().options.getCameraType() == CameraType.FIRST_PERSON && (stack.is(ModItems.MINIGUN.get()) || stack.is(ModItems.AURELIA_SCEPTRE.get()))) || (Minecraft.getInstance().options.getCameraType() == CameraType.THIRD_PERSON_BACK && (ClientEventHandler.zoomTime > 0 || ClientEventHandler.bowPullPos > 0))) {
             preciseBlit(guiGraphics, Mod.loc("textures/screens/point.png"), screenWidth / 2f - 7.5f + moveX, screenHeight / 2f - 7.5f + moveY, 0, 0, 16, 16, 16, 16);
             if (!player.isSprinting() || ClientEventHandler.cantSprint > 0) {
-                if (stack.is(ModTags.Items.SHOTGUN)) {
-                    if (perk instanceof AmmoPerk ammoPerk && ammoPerk.slug) {
-                        normalCrossHair(guiGraphics, screenWidth, screenHeight, spread, moveX, moveY);
-                    } else {
-                        shotgunCrossHair(guiGraphics, finPosX, finPosY, finLength);
-                    }
+                if (data.projectileAmount() > 1) {
+                    shotgunCrossHair(guiGraphics, finPosX, finPosY, finLength);
                 } else {
                     normalCrossHair(guiGraphics, screenWidth, screenHeight, spread, moveX, moveY);
                 }

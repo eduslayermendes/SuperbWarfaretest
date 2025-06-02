@@ -17,8 +17,6 @@ import net.minecraft.ChatFormatting;
 import net.minecraft.core.registries.Registries;
 import net.minecraft.nbt.CompoundTag;
 import net.minecraft.network.chat.Component;
-import net.minecraft.network.protocol.Packet;
-import net.minecraft.network.protocol.game.ClientGamePacketListener;
 import net.minecraft.network.syncher.EntityDataAccessor;
 import net.minecraft.network.syncher.EntityDataSerializers;
 import net.minecraft.network.syncher.SynchedEntityData;
@@ -51,7 +49,6 @@ import net.minecraftforge.common.capabilities.Capability;
 import net.minecraftforge.common.util.LazyOptional;
 import net.minecraftforge.event.ForgeEventFactory;
 import net.minecraftforge.items.ItemHandlerHelper;
-import net.minecraftforge.network.NetworkHooks;
 import net.minecraftforge.network.PlayMessages;
 import org.jetbrains.annotations.NotNull;
 import org.jetbrains.annotations.Nullable;
@@ -74,7 +71,6 @@ public class DroneEntity extends MobileVehicleEntity implements GeoEntity {
     public static final EntityDataAccessor<Float> DELTA_X_ROT = SynchedEntityData.defineId(DroneEntity.class, EntityDataSerializers.FLOAT);
 
     private final AnimatableInstanceCache cache = GeckoLibUtil.createInstanceCache(this);
-    public static final float MAX_HEALTH = 5;
 
     public boolean fire;
     public int collisionCoolDown;
@@ -119,11 +115,6 @@ public class DroneEntity extends MobileVehicleEntity implements GeoEntity {
         return false;
     }
 
-    @Override
-    public float getMaxHealth() {
-        return MAX_HEALTH;
-    }
-
     public DroneEntity(EntityType<? extends DroneEntity> type, Level world, float moveX, float moveY, float moveZ) {
         super(type, world);
     }
@@ -135,11 +126,6 @@ public class DroneEntity extends MobileVehicleEntity implements GeoEntity {
         this.entityData.define(CONTROLLER, "undefined");
         this.entityData.define(LINKED, false);
         this.entityData.define(KAMIKAZE_MODE, 0);
-    }
-
-    @Override
-    public Packet<ClientGamePacketListener> getAddEntityPacket() {
-        return NetworkHooks.getEntitySpawningPacket(this);
     }
 
     @Override
@@ -206,11 +192,7 @@ public class DroneEntity extends MobileVehicleEntity implements GeoEntity {
         if (!this.onGround()) {
             if (controller != null) {
                 ItemStack stack = controller.getMainHandItem();
-                if (stack.is(ModItems.MONITOR.get()) && stack.getOrCreateTag().getBoolean("Using")) {
-                    if (controller.level().isClientSide) {
-                        controller.playSound(ModSounds.DRONE_SOUND.get(), 114, 1);
-                    }
-                } else {
+                if (!stack.is(ModItems.MONITOR.get()) || !stack.getOrCreateTag().getBoolean("Using")) {
                     upInputDown = false;
                     downInputDown = false;
                     forwardInputDown = false;
@@ -384,8 +366,6 @@ public class DroneEntity extends MobileVehicleEntity implements GeoEntity {
 
     @Override
     public void travel() {
-        float diffX;
-        float diffY;
         if (!this.onGround()) {
             // left and right
             if (rightInputDown) {
@@ -409,7 +389,7 @@ public class DroneEntity extends MobileVehicleEntity implements GeoEntity {
                 holdTickZ = 0;
             }
 
-            this.setDeltaMovement(this.getDeltaMovement().multiply(0.94, 0.55, 0.94));
+            this.setDeltaMovement(this.getDeltaMovement().multiply(0.97, 0.94, 0.97));
         } else {
             this.setDeltaMovement(this.getDeltaMovement().multiply(0.8, 1, 0.8));
             this.setZRot(this.roll * 0.7f);
@@ -427,37 +407,43 @@ public class DroneEntity extends MobileVehicleEntity implements GeoEntity {
 
         if (up) {
             holdTickY++;
-            this.entityData.set(POWER, Math.min(this.entityData.get(POWER) + 0.06f * Math.min(holdTickY, 5), 0.9f));
+            this.entityData.set(POWER, Math.min(this.entityData.get(POWER) + 0.01f * Math.min(holdTickY, 5), 0.2f));
         } else if (down) {
             holdTickY++;
-            this.entityData.set(POWER, Math.max(this.entityData.get(POWER) - 0.06f * Math.min(holdTickY, 5), -0.9f));
+            this.entityData.set(POWER, Math.max(this.entityData.get(POWER) - 0.02f * Math.min(holdTickY, 5), this.onGround() ? 0 : 0.01f));
         } else {
             holdTickY = 0;
         }
 
-        this.entityData.set(POWER, this.entityData.get(POWER) * 0.7f);
+        if (!(up || down)) {
+            if (this.getDeltaMovement().y() < 0) {
+                this.entityData.set(POWER, Math.min(this.entityData.get(POWER) + 0.01f, 0.4f));
+            } else {
+                this.entityData.set(POWER, Math.max(this.entityData.get(POWER) - 0.01f, this.onGround() ? 0 : 0.01f));
+            }
+        }
+
+        this.entityData.set(POWER, this.entityData.get(POWER) * 0.99f);
         this.entityData.set(DELTA_ROT, this.entityData.get(DELTA_ROT) * 0.7f);
         this.entityData.set(DELTA_X_ROT, this.entityData.get(DELTA_X_ROT) * 0.7f);
 
         this.setZRot(Mth.clamp(this.getRoll() - this.entityData.get(DELTA_ROT), -30, 30));
         this.setBodyXRot(Mth.clamp(this.getBodyPitch() - this.entityData.get(DELTA_X_ROT), -30, 30));
 
-        setDeltaMovement(getDeltaMovement().add(0.0f, Math.min(Math.sin((90 - this.getBodyPitch()) * Mth.DEG_TO_RAD), Math.sin((90 + this.getRoll()) * Mth.DEG_TO_RAD)) * this.entityData.get(POWER), 0.0f));
+        setDeltaMovement(getDeltaMovement().add(0.0f, this.entityData.get(POWER) * 0.6f, 0.0f));
 
         Vector3f direction = getRightDirection().mul(this.entityData.get(DELTA_ROT));
-        setDeltaMovement(getDeltaMovement().add(new Vec3(direction.x, direction.y, direction.z).scale(0.04)));
+        setDeltaMovement(getDeltaMovement().add(new Vec3(direction.x, direction.y, direction.z).scale(0.03)));
 
         Vector3f directionZ = getForwardDirection().mul(-this.entityData.get(DELTA_X_ROT));
-        setDeltaMovement(getDeltaMovement().add(new Vec3(directionZ.x, directionZ.y, directionZ.z).scale(0.04)));
+        setDeltaMovement(getDeltaMovement().add(new Vec3(directionZ.x, directionZ.y, directionZ.z).scale(0.03)));
 
         Player controller = EntityFindUtil.findPlayer(this.level(), this.entityData.get(CONTROLLER));
         if (controller != null) {
             ItemStack stack = controller.getMainHandItem();
             if (stack.is(ModItems.MONITOR.get()) && stack.getOrCreateTag().getBoolean("Using")) {
-                diffY = Math.clamp(-90f, 90f, Mth.wrapDegrees(controller.getYHeadRot() - this.getYRot()));
-                diffX = Math.clamp(-60f, 60f, Mth.wrapDegrees(controller.getXRot() - this.getXRot()));
-                this.setYRot(this.getYRot() + 0.5f * diffY);
-                this.setXRot(Mth.clamp(this.getXRot() + 0.5f * diffX, -10, 90));
+                this.setYRot(this.getYRot() + 0.5f * entityData.get(MOUSE_SPEED_X));
+                this.setXRot(Mth.clamp(this.getXRot() + 0.5f * entityData.get(MOUSE_SPEED_Y), -10, 90));
             }
         }
 
@@ -501,8 +487,18 @@ public class DroneEntity extends MobileVehicleEntity implements GeoEntity {
     }
 
     @Override
+    public boolean engineRunning() {
+        return !onGround();
+    }
+
+    @Override
     public SoundEvent getEngineSound() {
         return ModSounds.DRONE_SOUND.get();
+    }
+
+    @Override
+    public float getEngineSoundVolume() {
+        return entityData.get(POWER) * 2f;
     }
 
     @Override
@@ -569,7 +565,7 @@ public class DroneEntity extends MobileVehicleEntity implements GeoEntity {
                     });
         }
 
-        this.discard();
+        super.destroy();
     }
 
     private void kamikazeExplosion(int mode) {
@@ -582,15 +578,15 @@ public class DroneEntity extends MobileVehicleEntity implements GeoEntity {
         CustomExplosion explosion = switch (mode) {
             case 1 -> new CustomExplosion(this.level(), this,
                     ModDamageTypes.causeProjectileBoomDamage(this.level().registryAccess(), mortarShell, attacker), ExplosionConfig.DRONE_KAMIKAZE_EXPLOSION_DAMAGE.get(),
-                    this.getX(), this.getY(), this.getZ(), ExplosionConfig.DRONE_KAMIKAZE_EXPLOSION_RADIUS.get(), ExplosionConfig.EXPLOSION_DESTROY.get() ? Explosion.BlockInteraction.DESTROY : Explosion.BlockInteraction.KEEP).setDamageMultiplier(1);
+                    this.getX(), this.getY(), this.getZ(), ExplosionConfig.DRONE_KAMIKAZE_EXPLOSION_RADIUS.get(), ExplosionConfig.EXPLOSION_DESTROY.get() ? Explosion.BlockInteraction.DESTROY : Explosion.BlockInteraction.KEEP, true).setDamageMultiplier(1);
 
             case 2 -> new CustomExplosion(this.level(), this,
                     ModDamageTypes.causeProjectileBoomDamage(this.level().registryAccess(), c4, attacker), ExplosionConfig.C4_EXPLOSION_DAMAGE.get(),
-                    this.getX(), this.getY(), this.getZ(), ExplosionConfig.C4_EXPLOSION_RADIUS.get(), ExplosionConfig.EXPLOSION_DESTROY.get() ? Explosion.BlockInteraction.DESTROY : Explosion.BlockInteraction.KEEP).setDamageMultiplier(1);
+                    this.getX(), this.getY(), this.getZ(), ExplosionConfig.C4_EXPLOSION_RADIUS.get(), ExplosionConfig.EXPLOSION_DESTROY.get() ? Explosion.BlockInteraction.DESTROY : Explosion.BlockInteraction.KEEP, true).setDamageMultiplier(1);
 
             case 3 -> new CustomExplosion(this.level(), this,
                     ModDamageTypes.causeProjectileBoomDamage(this.level().registryAccess(), rpg, attacker), ExplosionConfig.RPG_EXPLOSION_DAMAGE.get(),
-                    this.getX(), this.getY(), this.getZ(), ExplosionConfig.RPG_EXPLOSION_RADIUS.get(), ExplosionConfig.EXPLOSION_DESTROY.get() ? Explosion.BlockInteraction.DESTROY : Explosion.BlockInteraction.KEEP).setDamageMultiplier(1);
+                    this.getX(), this.getY(), this.getZ(), ExplosionConfig.RPG_EXPLOSION_RADIUS.get(), ExplosionConfig.EXPLOSION_DESTROY.get() ? Explosion.BlockInteraction.DESTROY : Explosion.BlockInteraction.KEEP, true).setDamageMultiplier(1);
 
             default -> null;
         };
@@ -626,11 +622,6 @@ public class DroneEntity extends MobileVehicleEntity implements GeoEntity {
             cloud.setOwner(controller);
         }
         level.addFreshEntity(cloud);
-    }
-
-    @Override
-    public boolean isNoGravity() {
-        return super.isNoGravity();
     }
 
     @Override

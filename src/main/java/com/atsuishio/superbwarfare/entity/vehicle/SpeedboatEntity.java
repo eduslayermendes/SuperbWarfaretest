@@ -3,28 +3,29 @@ package com.atsuishio.superbwarfare.entity.vehicle;
 import com.atsuishio.superbwarfare.Mod;
 import com.atsuishio.superbwarfare.config.server.ExplosionConfig;
 import com.atsuishio.superbwarfare.config.server.VehicleConfig;
-import com.atsuishio.superbwarfare.entity.projectile.*;
+import com.atsuishio.superbwarfare.entity.projectile.AerialBombEntity;
 import com.atsuishio.superbwarfare.entity.vehicle.base.*;
 import com.atsuishio.superbwarfare.entity.vehicle.damage.DamageModifier;
 import com.atsuishio.superbwarfare.entity.vehicle.weapon.ProjectileWeapon;
 import com.atsuishio.superbwarfare.entity.vehicle.weapon.VehicleWeapon;
-import com.atsuishio.superbwarfare.init.*;
+import com.atsuishio.superbwarfare.init.ModDamageTypes;
+import com.atsuishio.superbwarfare.init.ModEntities;
+import com.atsuishio.superbwarfare.init.ModItems;
+import com.atsuishio.superbwarfare.init.ModSounds;
 import com.atsuishio.superbwarfare.network.message.receive.ShakeClientMessage;
 import com.atsuishio.superbwarfare.tools.Ammo;
 import com.atsuishio.superbwarfare.tools.CustomExplosion;
 import com.atsuishio.superbwarfare.tools.InventoryTool;
 import com.atsuishio.superbwarfare.tools.ParticleTool;
 import com.mojang.math.Axis;
+import it.unimi.dsi.fastutil.Pair;
 import net.minecraft.core.particles.ParticleTypes;
 import net.minecraft.nbt.CompoundTag;
-import net.minecraft.network.protocol.Packet;
-import net.minecraft.network.protocol.game.ClientGamePacketListener;
 import net.minecraft.resources.ResourceLocation;
 import net.minecraft.server.level.ServerLevel;
 import net.minecraft.server.level.ServerPlayer;
 import net.minecraft.sounds.SoundEvent;
 import net.minecraft.util.Mth;
-import net.minecraft.world.damagesource.DamageTypes;
 import net.minecraft.world.entity.Entity;
 import net.minecraft.world.entity.EntityType;
 import net.minecraft.world.entity.player.Player;
@@ -32,12 +33,17 @@ import net.minecraft.world.item.ItemStack;
 import net.minecraft.world.level.Explosion;
 import net.minecraft.world.level.Level;
 import net.minecraft.world.phys.AABB;
+import net.minecraft.world.phys.Vec2;
 import net.minecraft.world.phys.Vec3;
-import net.minecraftforge.network.NetworkHooks;
+import net.minecraftforge.api.distmarker.Dist;
+import net.minecraftforge.api.distmarker.OnlyIn;
 import net.minecraftforge.network.PacketDistributor;
 import net.minecraftforge.network.PlayMessages;
+import org.jetbrains.annotations.NotNull;
+import org.jetbrains.annotations.Nullable;
 import org.joml.Math;
 import org.joml.Matrix4f;
+import org.joml.Quaternionf;
 import org.joml.Vector4f;
 import software.bernie.geckolib.animatable.GeoEntity;
 import software.bernie.geckolib.core.animatable.instance.AnimatableInstanceCache;
@@ -48,11 +54,13 @@ import software.bernie.geckolib.core.animation.RawAnimation;
 import software.bernie.geckolib.core.object.PlayState;
 import software.bernie.geckolib.util.GeckoLibUtil;
 
+import javax.annotation.ParametersAreNonnullByDefault;
 import java.util.Comparator;
 
 import static com.atsuishio.superbwarfare.tools.ParticleTool.sendParticle;
 
 public class SpeedboatEntity extends ContainerMobileVehicleEntity implements GeoEntity, ArmedVehicleEntity, WeaponVehicleEntity, LandArmorEntity {
+
     private final AnimatableInstanceCache cache = GeckoLibUtil.createInstanceCache(this);
 
     public SpeedboatEntity(PlayMessages.SpawnEntity packet, Level world) {
@@ -72,6 +80,10 @@ public class SpeedboatEntity extends ContainerMobileVehicleEntity implements Geo
                                 .headShot(2)
                                 .zoom(false)
                                 .icon(Mod.loc("textures/screens/vehicle_weapon/gun_12_7mm.png"))
+                                .sound1p(ModSounds.M_2_FIRE_1P.get())
+                                .sound3p(ModSounds.M_2_FIRE_3P.get())
+                                .sound3pFar(ModSounds.M_2_FAR.get())
+                                .sound3pVeryFar(ModSounds.M_2_VERYFAR.get())
                 }
         };
     }
@@ -96,10 +108,6 @@ public class SpeedboatEntity extends ContainerMobileVehicleEntity implements Geo
         super.readAdditionalSaveData(compound);
     }
 
-    @Override
-    public Packet<ClientGamePacketListener> getAddEntityPacket() {
-        return NetworkHooks.getEntitySpawningPacket(this);
-    }
 
     @Override
     public double getPassengersRidingOffset() {
@@ -109,44 +117,12 @@ public class SpeedboatEntity extends ContainerMobileVehicleEntity implements Geo
     @Override
     public DamageModifier getDamageModifier() {
         return super.getDamageModifier()
-                .multiply(0.5f)
-                .multiply(0.2f, DamageTypes.ARROW)
-                .multiply(0.4f, DamageTypes.TRIDENT)
-                .multiply(0.4f, DamageTypes.MOB_ATTACK)
-                .multiply(0.4f, DamageTypes.MOB_ATTACK_NO_AGGRO)
-                .multiply(0.4f, DamageTypes.MOB_PROJECTILE)
-                .multiply(0.4f, DamageTypes.PLAYER_ATTACK)
-                .multiply(4, DamageTypes.LAVA)
-                .multiply(4, DamageTypes.EXPLOSION)
-                .multiply(4, DamageTypes.PLAYER_EXPLOSION)
-                .multiply(0.8f, ModDamageTypes.CANNON_FIRE)
-                .multiply(0.2f, ModTags.DamageTypes.PROJECTILE)
-                .multiply(2, ModDamageTypes.VEHICLE_STRIKE)
                 .custom((source, damage) -> {
-                    if (source.getDirectEntity() instanceof CannonShellEntity) {
-                        return 0.9f * damage;
-                    }
-                    if (source.getDirectEntity() instanceof SmallCannonShellEntity) {
-                        return 1.3f * damage;
-                    }
-                    if (source.getDirectEntity() instanceof GunGrenadeEntity) {
-                        return 2.2f * damage;
-                    }
-                    if (source.getDirectEntity() instanceof MelonBombEntity) {
+                    if (source.getDirectEntity() instanceof AerialBombEntity) {
                         return 2f * damage;
                     }
-                    if (source.getDirectEntity() instanceof RgoGrenadeEntity) {
-                        return 6f * damage;
-                    }
-                    if (source.getDirectEntity() instanceof HandGrenadeEntity) {
-                        return 5f * damage;
-                    }
-                    if (source.getDirectEntity() instanceof MortarShellEntity) {
-                        return 4f * damage;
-                    }
                     return damage;
-                })
-                .reduce(2);
+                });
     }
 
     @Override
@@ -158,10 +134,10 @@ public class SpeedboatEntity extends ContainerMobileVehicleEntity implements Geo
         this.setDeltaMovement(this.getDeltaMovement().add(0.0, fluidFloat, 0.0));
 
         if (this.onGround()) {
-            this.setDeltaMovement(this.getDeltaMovement().multiply(0.2, 0.85, 0.2));
+            this.setDeltaMovement(this.getDeltaMovement().multiply(0.2, 0.99, 0.2));
         } else if (isInWater()) {
             float f = (float) (0.75f - (0.04f * java.lang.Math.min(getSubmergedHeight(this), this.getBbHeight())) + 0.09f * Mth.abs(90 - (float) calculateAngle(this.getDeltaMovement(), this.getViewVector(1))) / 90);
-            this.setDeltaMovement(this.getDeltaMovement().add(this.getViewVector(1).normalize().scale(0.04 * this.getDeltaMovement().horizontalDistance())));
+            this.setDeltaMovement(this.getDeltaMovement().add(this.getViewVector(1).normalize().scale(0.04 * getDeltaMovement().dot(getViewVector(1)))));
             this.setDeltaMovement(this.getDeltaMovement().multiply(f, 0.85, f));
         } else {
             this.setDeltaMovement(this.getDeltaMovement().multiply(0.99, 0.99, 0.99));
@@ -180,7 +156,7 @@ public class SpeedboatEntity extends ContainerMobileVehicleEntity implements Geo
         turretAngle(40, 40);
         lowHealthWarning();
         inertiaRotate(2);
-        this.terrainCompat(2f, 3f);
+        this.terrainCompact(2f, 3f);
 
         this.refreshDimensions();
     }
@@ -191,7 +167,7 @@ public class SpeedboatEntity extends ContainerMobileVehicleEntity implements Geo
     }
 
     private void handleAmmo() {
-        if (!(this.getFirstPassenger() instanceof Player player)) return;
+        if (!(this.getFirstPassenger() instanceof Player)) return;
 
         int ammoCount = this.getItemStacks().stream().filter(stack -> {
             if (stack.is(ModItems.AMMO_BOX.get())) {
@@ -228,14 +204,10 @@ public class SpeedboatEntity extends ContainerMobileVehicleEntity implements Geo
                 (float) 0.4);
         this.level().addFreshEntity(projectile);
 
-        float pitch = this.entityData.get(HEAT) <= 60 ? 1 : (float) (1 - 0.011 * Math.abs(60 - this.entityData.get(HEAT)));
+//        float pitch = this.entityData.get(HEAT) <= 60 ? 1 : (float) (1 - 0.011 * Math.abs(60 - this.entityData.get(HEAT)));
 
         if (!player.level().isClientSide) {
-            if (player instanceof ServerPlayer serverPlayer) {
-                serverPlayer.playSound(ModSounds.M_2_FIRE_3P.get(), 4, pitch);
-                serverPlayer.playSound(ModSounds.M_2_FAR.get(), 12, pitch);
-                serverPlayer.playSound(ModSounds.M_2_VERYFAR.get(), 24, pitch);
-            }
+            playShootSound3p(player, 0, 4, 12, 24);
         }
 
         Level level = player.level();
@@ -311,10 +283,6 @@ public class SpeedboatEntity extends ContainerMobileVehicleEntity implements Geo
                 this.consumeEnergy(VehicleConfig.SPEEDBOAT_ENERGY_COST.get());
             }
 
-            if (level().isClientSide) {
-                level().playLocalSound(this.getX(), this.getY() + this.getBbHeight() * 0.5, this.getZ(), this.getEngineSound(), this.getSoundSource(), Math.min((this.forwardInputDown || this.backInputDown ? 7.5f : 5f) * 2 * Mth.abs(this.entityData.get(POWER)), 0.25f), (random.nextFloat() * 0.1f + 1f), false);
-            }
-
             this.entityData.set(POWER, this.entityData.get(POWER) * 0.96f);
             this.entityData.set(DELTA_ROT, this.entityData.get(DELTA_ROT) * 0.8f);
 
@@ -344,6 +312,12 @@ public class SpeedboatEntity extends ContainerMobileVehicleEntity implements Geo
     }
 
     @Override
+    public float getEngineSoundVolume() {
+        return (Mth.abs(entityData.get(POWER)) - 0.01f) * 2f;
+    }
+
+    @Override
+    @ParametersAreNonnullByDefault
     protected void positionRider(Entity passenger, MoveFunction callback) {
         if (!this.hasPassenger(passenger)) {
             return;
@@ -396,7 +370,7 @@ public class SpeedboatEntity extends ContainerMobileVehicleEntity implements Geo
         if (level() instanceof ServerLevel) {
             CustomExplosion explosion = new CustomExplosion(this.level(), this,
                     ModDamageTypes.causeCustomExplosionDamage(this.level().registryAccess(), getAttacker(), getAttacker()), 80f,
-                    this.getX(), this.getY(), this.getZ(), 5f, ExplosionConfig.EXPLOSION_DESTROY.get() ? Explosion.BlockInteraction.DESTROY : Explosion.BlockInteraction.KEEP).setDamageMultiplier(1);
+                    this.getX(), this.getY(), this.getZ(), 5f, ExplosionConfig.EXPLOSION_DESTROY.get() ? Explosion.BlockInteraction.DESTROY : Explosion.BlockInteraction.KEEP, true).setDamageMultiplier(1);
             explosion.explode();
             net.minecraftforge.event.ForgeEventFactory.onExplosionStart(this.level(), explosion);
             explosion.finalizeExplosion(false);
@@ -404,7 +378,7 @@ public class SpeedboatEntity extends ContainerMobileVehicleEntity implements Geo
         }
 
         explodePassengers();
-        this.discard();
+        super.destroy();
     }
 
     protected void clampRotation(Entity entity) {
@@ -417,7 +391,7 @@ public class SpeedboatEntity extends ContainerMobileVehicleEntity implements Geo
             r2 = a / 90f;
         } else {
             if (a < 0) {
-                r2 = - (180f + a) / 90f;
+                r2 = -(180f + a) / 90f;
             } else {
                 r2 = (180f - a) / 90f;
             }
@@ -439,7 +413,7 @@ public class SpeedboatEntity extends ContainerMobileVehicleEntity implements Geo
     }
 
     @Override
-    public void onPassengerTurned(Entity entity) {
+    public void onPassengerTurned(@NotNull Entity entity) {
         this.clampRotation(entity);
     }
 
@@ -482,7 +456,7 @@ public class SpeedboatEntity extends ContainerMobileVehicleEntity implements Geo
             r2 = a / 90f;
         } else {
             if (a < 0) {
-                r2 = - (180f + a) / 90f;
+                r2 = -(180f + a) / 90f;
             } else {
                 r2 = (180f - a) / 90f;
             }
@@ -541,16 +515,6 @@ public class SpeedboatEntity extends ContainerMobileVehicleEntity implements Geo
     }
 
     @Override
-    public int getMaxEnergy() {
-        return VehicleConfig.SPEEDBOAT_MAX_ENERGY.get();
-    }
-
-    @Override
-    public float getMaxHealth() {
-        return VehicleConfig.SPEEDBOAT_HP.get();
-    }
-
-    @Override
     public int mainGunRpm(Player player) {
         return 500;
     }
@@ -577,6 +541,11 @@ public class SpeedboatEntity extends ContainerMobileVehicleEntity implements Geo
     }
 
     @Override
+    public int getWeaponHeat(Player player) {
+        return entityData.get(HEAT);
+    }
+
+    @Override
     public ResourceLocation getVehicleIcon() {
         return Mod.loc("textures/vehicle_icon/speedboat_icon.png");
     }
@@ -584,5 +553,34 @@ public class SpeedboatEntity extends ContainerMobileVehicleEntity implements Geo
     @Override
     public Vec3 getGunVec(float ticks) {
         return getBarrelVector(ticks);
+    }
+
+    @OnlyIn(Dist.CLIENT)
+    @Override
+    public @Nullable Vec2 getCameraRotation(float partialTicks, Player player, boolean zoom, boolean isFirstPerson) {
+        if (this.getSeatIndex(player) == 0 && zoom) {
+            return new Vec2((float) -getYRotFromVector(this.getBarrelVec(partialTicks)), (float) -getXRotFromVector(this.getBarrelVec(partialTicks)));
+        }
+        return super.getCameraRotation(partialTicks, player, zoom, isFirstPerson);
+    }
+
+    @OnlyIn(Dist.CLIENT)
+    @Override
+    public Vec3 getCameraPosition(float partialTicks, Player player, boolean zoom, boolean isFirstPerson) {
+        if (this.getSeatIndex(player) == 0 && zoom) {
+            return new Vec3(this.driverZoomPos(partialTicks).x, this.driverZoomPos(partialTicks).y, this.driverZoomPos(partialTicks).z);
+        }
+        return super.getCameraPosition(partialTicks, player, zoom, isFirstPerson);
+    }
+
+    @OnlyIn(Dist.CLIENT)
+    public boolean useFixedCameraPos(Entity entity) {
+        return this.getSeatIndex(entity) == 0;
+    }
+
+    @OnlyIn(Dist.CLIENT)
+    @Nullable
+    public Pair<Quaternionf, Quaternionf> getPassengerRotation(Entity entity, float tickDelta) {
+        return Pair.of(Axis.XP.rotationDegrees(-this.getViewXRot(tickDelta)), Axis.ZP.rotationDegrees(-this.getRoll(tickDelta)));
     }
 }

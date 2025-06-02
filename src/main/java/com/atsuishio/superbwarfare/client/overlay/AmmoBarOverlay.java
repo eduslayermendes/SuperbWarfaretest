@@ -2,17 +2,15 @@ package com.atsuishio.superbwarfare.client.overlay;
 
 import com.atsuishio.superbwarfare.Mod;
 import com.atsuishio.superbwarfare.config.client.DisplayConfig;
+import com.atsuishio.superbwarfare.data.gun.GunData;
 import com.atsuishio.superbwarfare.entity.vehicle.base.ArmedVehicleEntity;
 import com.atsuishio.superbwarfare.init.ModItems;
 import com.atsuishio.superbwarfare.init.ModKeyMappings;
 import com.atsuishio.superbwarfare.item.gun.GunItem;
-import com.atsuishio.superbwarfare.item.gun.data.GunData;
 import com.atsuishio.superbwarfare.tools.InventoryTool;
 import com.mojang.blaze3d.vertex.PoseStack;
-import net.minecraft.ChatFormatting;
 import net.minecraft.client.Minecraft;
 import net.minecraft.client.gui.GuiGraphics;
-import net.minecraft.network.chat.Component;
 import net.minecraft.resources.ResourceLocation;
 import net.minecraft.world.entity.player.Player;
 import net.minecraft.world.item.ItemStack;
@@ -40,11 +38,11 @@ public class AmmoBarOverlay implements IGuiOverlay {
         return player.isCreative() || InventoryTool.hasCreativeAmmoBox(player);
     }
 
-    private static ResourceLocation getFireMode(ItemStack stack) {
-        return switch (GunData.from(stack).fireMode.get()) {
-            case 1 -> BURST;
-            case 2 -> AUTO;
-            default -> SEMI;
+    private static ResourceLocation getFireMode(GunData data) {
+        return switch (data.fireMode.get()) {
+            case SEMI -> SEMI;
+            case BURST -> BURST;
+            case AUTO -> AUTO;
         };
     }
 
@@ -97,7 +95,7 @@ public class AmmoBarOverlay implements IGuiOverlay {
             }
 
             // 渲染开火模式
-            ResourceLocation fireMode = getFireMode(stack);
+            ResourceLocation fireMode = getFireMode(data);
 
             if (stack.getItem() == ModItems.JAVELIN.get()) {
                 fireMode = stack.getOrCreateTag().getBoolean("TopMode") ? TOP : DIR;
@@ -125,26 +123,15 @@ public class AmmoBarOverlay implements IGuiOverlay {
                         12,
                         12);
             } else {
-                if (stack.getItem() != ModItems.TRACHELIUM.get()) {
-                    guiGraphics.blit(fireMode,
-                            screenWidth - 95,
-                            screenHeight - 21,
-                            0,
-                            0,
-                            8,
-                            8,
-                            8,
-                            8);
-                } else {
-                    guiGraphics.drawString(
-                            Minecraft.getInstance().font,
-                            GunData.from(stack).DA.get() ? Component.translatable("des.superbwarfare.revolver.sa").withStyle(ChatFormatting.BOLD) : Component.translatable("des.superbwarfare.revolver.da").withStyle(ChatFormatting.BOLD),
-                            screenWidth - 96,
-                            screenHeight - 20,
-                            0xFFFFFF,
-                            false
-                    );
-                }
+                guiGraphics.blit(fireMode,
+                        screenWidth - 95,
+                        screenHeight - 21,
+                        0,
+                        0,
+                        8,
+                        8,
+                        8,
+                        8);
             }
 
             if (stack.getItem() != ModItems.MINIGUN.get() && stack.getItem() != ModItems.TRACHELIUM.get()) {

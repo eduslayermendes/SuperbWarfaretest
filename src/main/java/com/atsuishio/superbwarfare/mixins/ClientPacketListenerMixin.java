@@ -72,5 +72,4 @@ public abstract class ClientPacketListenerMixin {
 
         vehicle.entityIndexOverride = null;
     }
-
 }

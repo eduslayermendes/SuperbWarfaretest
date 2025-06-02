@@ -12,6 +12,14 @@ public class DisplayClothConfig {
         ConfigCategory category = root.getOrCreateCategory(Component.translatable("config.superbwarfare.client.display"));
 
         category.addEntry(entryBuilder
+                .startBooleanToggle(Component.translatable("config.superbwarfare.client.display.enable_gun_lod"), DisplayConfig.ENABLE_GUN_LOD.get())
+                .setDefaultValue(false)
+                .setSaveConsumer(DisplayConfig.ENABLE_GUN_LOD::set)
+                .setTooltip(Component.translatable("config.superbwarfare.client.display.enable_gun_lod.des"))
+                .build()
+        );
+
+        category.addEntry(entryBuilder
                 .startBooleanToggle(Component.translatable("config.superbwarfare.client.display.kill_indication"), DisplayConfig.KILL_INDICATION.get())
                 .setDefaultValue(true)
                 .setSaveConsumer(DisplayConfig.KILL_INDICATION::set)
@@ -58,5 +66,45 @@ public class DisplayClothConfig {
                 .setTooltip(Component.translatable("config.superbwarfare.client.display.stamina_hud.des"))
                 .build()
         );
+
+        category.addEntry(entryBuilder
+                .startBooleanToggle(Component.translatable("config.superbwarfare.client.display.dog_tag_name_visible"), DisplayConfig.DOG_TAG_NAME_VISIBLE.get())
+                .setDefaultValue(true)
+                .setSaveConsumer(DisplayConfig.DOG_TAG_NAME_VISIBLE::set)
+                .setTooltip(Component.translatable("config.superbwarfare.client.display.dog_tag_name_visible.des"))
+                .build()
+        );
+
+        category.addEntry(entryBuilder
+                .startBooleanToggle(Component.translatable("config.superbwarfare.client.display.dog_tag_icon_visible"), DisplayConfig.DOG_TAG_ICON_VISIBLE.get())
+                .setDefaultValue(false)
+                .setSaveConsumer(DisplayConfig.DOG_TAG_ICON_VISIBLE::set)
+                .setTooltip(Component.translatable("config.superbwarfare.client.display.dog_tag_icon_visible.des"))
+                .build()
+        );
+
+        category.addEntry(entryBuilder
+                .startIntSlider(Component.translatable("config.superbwarfare.client.display.weapon_screen_shake"), DisplayConfig.WEAPON_SCREEN_SHAKE.get(),
+                        0, 100)
+                .setDefaultValue(100)
+                .setSaveConsumer(DisplayConfig.WEAPON_SCREEN_SHAKE::set)
+                .setTooltip(Component.translatable("config.superbwarfare.client.display.weapon_screen_shake.des"))
+                .build());
+
+        category.addEntry(entryBuilder
+                .startIntSlider(Component.translatable("config.superbwarfare.client.display.explosion_screen_shake"), DisplayConfig.EXPLOSION_SCREEN_SHAKE.get(),
+                        0, 100)
+                .setDefaultValue(100)
+                .setSaveConsumer(DisplayConfig.EXPLOSION_SCREEN_SHAKE::set)
+                .setTooltip(Component.translatable("config.superbwarfare.client.display.explosion_screen_shake.des"))
+                .build());
+
+        category.addEntry(entryBuilder
+                .startIntSlider(Component.translatable("config.superbwarfare.client.display.shock_screen_shake"), DisplayConfig.SHOCK_SCREEN_SHAKE.get(),
+                        0, 100)
+                .setDefaultValue(100)
+                .setSaveConsumer(DisplayConfig.SHOCK_SCREEN_SHAKE::set)
+                .setTooltip(Component.translatable("config.superbwarfare.client.display.shock_screen_shake.des"))
+                .build());
     }
 }

@@ -3,9 +3,9 @@ package com.atsuishio.superbwarfare.client.model.item;
 import com.atsuishio.superbwarfare.Mod;
 import com.atsuishio.superbwarfare.client.AnimationHelper;
 import com.atsuishio.superbwarfare.client.overlay.CrossHairOverlay;
+import com.atsuishio.superbwarfare.data.gun.FireMode;
+import com.atsuishio.superbwarfare.data.gun.GunData;
 import com.atsuishio.superbwarfare.event.ClientEventHandler;
-import com.atsuishio.superbwarfare.item.gun.GunItem;
-import com.atsuishio.superbwarfare.item.gun.data.GunData;
 import com.atsuishio.superbwarfare.item.gun.handgun.Glock18Item;
 import net.minecraft.client.Minecraft;
 import net.minecraft.resources.ResourceLocation;
@@ -14,16 +14,15 @@ import net.minecraft.world.entity.player.Player;
 import net.minecraft.world.item.ItemStack;
 import software.bernie.geckolib.core.animatable.model.CoreGeoBone;
 import software.bernie.geckolib.core.animation.AnimationState;
-import software.bernie.geckolib.model.GeoModel;
 
-public class Glock18ItemModel extends GeoModel<Glock18Item> {
+public class Glock18ItemModel extends CustomGunModel<Glock18Item> {
 
     public static float fireRotY = 0f;
     public static float fireRotZ = 0f;
 
     @Override
     public ResourceLocation getAnimationResource(Glock18Item animatable) {
-        return Mod.loc("animations/glock17.animation.json");
+        return Mod.loc("animations/glock_17.animation.json");
     }
 
     @Override
@@ -33,26 +32,27 @@ public class Glock18ItemModel extends GeoModel<Glock18Item> {
 
     @Override
     public ResourceLocation getTextureResource(Glock18Item animatable) {
-        return Mod.loc("textures/item/glock17.png");
+        return Mod.loc("textures/item/glock_17.png");
     }
 
     @Override
-    public void setCustomAnimations(Glock18Item animatable, long instanceId, AnimationState animationState) {
+    public void setCustomAnimations(Glock18Item animatable, long instanceId, AnimationState<Glock18Item> animationState) {
+        Player player = Minecraft.getInstance().player;
+        if (player == null) return;
+        ItemStack stack = player.getMainHandItem();
+        if (shouldCancelRender(stack, animationState)) return;
+
         CoreGeoBone gun = getAnimationProcessor().getBone("bone");
         CoreGeoBone slide = getAnimationProcessor().getBone("huatao");
         CoreGeoBone bullet = getAnimationProcessor().getBone("bullet");
         CoreGeoBone switch_ = getAnimationProcessor().getBone("kuaimanji");
 
-        Player player = Minecraft.getInstance().player;
-        if (player == null) return;
-        ItemStack stack = player.getMainHandItem();
-        if (!(stack.getItem() instanceof GunItem)) return;
-
-        int mode = GunData.from(stack).fireMode.get();
-        if (mode == 0) {
+        var data = GunData.from(stack);
+        var mode = data.fireMode.get();
+        if (mode == FireMode.SEMI) {
             switch_.setRotX(35 * Mth.DEG_TO_RAD);
         }
-        if (mode == 2) {
+        if (mode == FireMode.AUTO) {
             switch_.setRotX(0);
         }
 
@@ -100,7 +100,6 @@ public class Glock18ItemModel extends GeoModel<Glock18Item> {
         CoreGeoBone camera = getAnimationProcessor().getBone("camera");
         CoreGeoBone main = getAnimationProcessor().getBone("0");
 
-
         float numR = (float) (1 - 0.12 * zt);
         float numP = (float) (1 - 0.68 * zt);
 
@@ -116,7 +115,7 @@ public class Glock18ItemModel extends GeoModel<Glock18Item> {
             camera.setRotZ(numR * camera.getRotZ());
         }
 
-        ClientEventHandler.shake(Mth.RAD_TO_DEG * camera.getRotX(), Mth.RAD_TO_DEG * camera.getRotY(), Mth.RAD_TO_DEG * camera.getRotZ());
+        ClientEventHandler.handleReloadShake(Mth.RAD_TO_DEG * camera.getRotX(), Mth.RAD_TO_DEG * camera.getRotY(), Mth.RAD_TO_DEG * camera.getRotZ());
         AnimationHelper.handleShellsAnimation(getAnimationProcessor(), 0.7f, 1f);
 
         CoreGeoBone shell = getAnimationProcessor().getBone("shell");

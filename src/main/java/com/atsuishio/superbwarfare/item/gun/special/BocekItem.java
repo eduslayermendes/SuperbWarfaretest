@@ -1,19 +1,18 @@
 package com.atsuishio.superbwarfare.item.gun.special;
 
 import com.atsuishio.superbwarfare.Mod;
-import com.atsuishio.superbwarfare.client.renderer.item.BocekItemRenderer;
+import com.atsuishio.superbwarfare.client.renderer.gun.BocekItemRenderer;
 import com.atsuishio.superbwarfare.client.tooltip.component.BocekImageComponent;
+import com.atsuishio.superbwarfare.data.gun.GunData;
 import com.atsuishio.superbwarfare.entity.projectile.ProjectileEntity;
 import com.atsuishio.superbwarfare.event.ClientEventHandler;
 import com.atsuishio.superbwarfare.init.ModPerks;
 import com.atsuishio.superbwarfare.init.ModSounds;
 import com.atsuishio.superbwarfare.item.gun.GunItem;
-import com.atsuishio.superbwarfare.item.gun.data.GunData;
 import com.atsuishio.superbwarfare.network.message.receive.ShootClientMessage;
 import com.atsuishio.superbwarfare.perk.AmmoPerk;
 import com.atsuishio.superbwarfare.perk.Perk;
 import com.atsuishio.superbwarfare.tools.GunsTool;
-import com.atsuishio.superbwarfare.tools.InventoryTool;
 import com.atsuishio.superbwarfare.tools.SoundTool;
 import net.minecraft.client.Minecraft;
 import net.minecraft.client.model.HumanoidModel;
@@ -23,8 +22,6 @@ import net.minecraft.resources.ResourceLocation;
 import net.minecraft.server.level.ServerPlayer;
 import net.minecraft.sounds.SoundSource;
 import net.minecraft.world.InteractionHand;
-import net.minecraft.world.effect.MobEffect;
-import net.minecraft.world.effect.MobEffectInstance;
 import net.minecraft.world.entity.Entity;
 import net.minecraft.world.entity.LivingEntity;
 import net.minecraft.world.entity.player.Player;
@@ -37,24 +34,18 @@ import net.minecraft.world.level.Level;
 import net.minecraftforge.client.extensions.common.IClientItemExtensions;
 import net.minecraftforge.network.PacketDistributor;
 import org.jetbrains.annotations.NotNull;
-import software.bernie.geckolib.animatable.GeoItem;
-import software.bernie.geckolib.core.animatable.instance.AnimatableInstanceCache;
+import software.bernie.geckolib.constant.DataTickets;
 import software.bernie.geckolib.core.animation.AnimatableManager;
 import software.bernie.geckolib.core.animation.AnimationController;
 import software.bernie.geckolib.core.animation.AnimationState;
 import software.bernie.geckolib.core.animation.RawAnimation;
 import software.bernie.geckolib.core.object.PlayState;
-import software.bernie.geckolib.util.GeckoLibUtil;
 
 import javax.annotation.ParametersAreNonnullByDefault;
-import java.util.ArrayList;
 import java.util.Optional;
 import java.util.function.Consumer;
 
-public class BocekItem extends GunItem implements GeoItem {
-
-    private final AnimatableInstanceCache cache = GeckoLibUtil.createInstanceCache(this);
-    public static ItemDisplayContext transformType;
+public class BocekItem extends GunItem {
 
     public BocekItem() {
         super(new Item.Properties().stacksTo(1).rarity(Rarity.EPIC));
@@ -64,10 +55,13 @@ public class BocekItem extends GunItem implements GeoItem {
     public void initializeClient(@NotNull Consumer<IClientItemExtensions> consumer) {
         super.initializeClient(consumer);
         consumer.accept(new IClientItemExtensions() {
-            private final BlockEntityWithoutLevelRenderer renderer = new BocekItemRenderer();
+            private BlockEntityWithoutLevelRenderer renderer;
 
             @Override
             public BlockEntityWithoutLevelRenderer getCustomRenderer() {
+                if (renderer == null) {
+                    renderer = new BocekItemRenderer();
+                }
                 return renderer;
             }
 
@@ -78,15 +72,13 @@ public class BocekItem extends GunItem implements GeoItem {
         });
     }
 
-    public void getTransformType(ItemDisplayContext type) {
-        transformType = type;
-    }
-
     private PlayState idlePredicate(AnimationState<BocekItem> event) {
         LocalPlayer player = Minecraft.getInstance().player;
         if (player == null) return PlayState.STOP;
         ItemStack stack = player.getMainHandItem();
         if (!(stack.getItem() instanceof GunItem)) return PlayState.STOP;
+        if (event.getData(DataTickets.ITEM_RENDER_PERSPECTIVE) != ItemDisplayContext.FIRST_PERSON_RIGHT_HAND)
+            return event.setAndContinue(RawAnimation.begin().thenLoop("animation.bocek.idle"));
 
         if (ClientEventHandler.bowPull) {
             return event.setAndContinue(RawAnimation.begin().thenPlayAndHold("animation.bocek.pull"));
@@ -108,6 +100,8 @@ public class BocekItem extends GunItem implements GeoItem {
         if (player == null) return PlayState.STOP;
         ItemStack stack = player.getMainHandItem();
         if (!(stack.getItem() instanceof GunItem)) return PlayState.STOP;
+        if (event.getData(DataTickets.ITEM_RENDER_PERSPECTIVE) != ItemDisplayContext.FIRST_PERSON_RIGHT_HAND)
+            return event.setAndContinue(RawAnimation.begin().thenLoop("animation.bocek.idle"));
 
         if (GunsTool.getGunIntTag(GunData.from(stack).tag, "ArrowEmpty") > 0) {
             return event.setAndContinue(RawAnimation.begin().thenPlay("animation.bocek.fire"));
@@ -121,13 +115,11 @@ public class BocekItem extends GunItem implements GeoItem {
         if (player == null) return PlayState.STOP;
         ItemStack stack = player.getMainHandItem();
         if (!(stack.getItem() instanceof GunItem)) return PlayState.STOP;
+        if (event.getData(DataTickets.ITEM_RENDER_PERSPECTIVE) != ItemDisplayContext.FIRST_PERSON_RIGHT_HAND)
+            return event.setAndContinue(RawAnimation.begin().thenLoop("animation.bocek.idle"));
 
         var data = GunData.from(stack);
-
-        // TODO 调整成正常的判断逻辑
-        if (GunsTool.getGunIntTag(GunData.from(stack).tag, "ArrowEmpty") > 0 && data.ammo.get() == 0
-//                && (data.countBackupAmmo(player) > 0 || InventoryTool.hasCreativeAmmoBox(player))
-        ) {
+        if (data.reload.empty()) {
             return event.setAndContinue(RawAnimation.begin().thenPlay("animation.bocek.reload"));
         }
 
@@ -145,29 +137,11 @@ public class BocekItem extends GunItem implements GeoItem {
     }
 
     @Override
-    public AnimatableInstanceCache getAnimatableInstanceCache() {
-        return this.cache;
-    }
-
-
-    @Override
     @ParametersAreNonnullByDefault
     public void inventoryTick(ItemStack stack, Level world, Entity entity, int slot, boolean selected) {
         super.inventoryTick(stack, world, entity, slot, selected);
-
-        if (entity instanceof Player player) {
-            var data = GunData.from(stack);
-
-            if (GunsTool.getGunIntTag(GunData.from(stack).tag, "ArrowEmpty") > 0) {
-                GunsTool.setGunIntTag(stack, "ArrowEmpty", GunsTool.getGunIntTag(GunData.from(stack).tag, "ArrowEmpty") - 1);
-            }
-
-            if (GunsTool.getGunIntTag(GunData.from(stack).tag, "ArrowEmpty") == 0 && data.ammo.get() == 0 && (data.countBackupAmmo(player) > 0 || InventoryTool.hasCreativeAmmoBox(player))) {
-                if (!InventoryTool.hasCreativeAmmoBox(player)) {
-                    data.consumeBackupAmmo(player, 1);
-                }
-                data.ammo.set(1);
-            }
+        if (GunsTool.getGunIntTag(GunData.from(stack).tag, "ArrowEmpty") > 0) {
+            GunsTool.setGunIntTag(stack, "ArrowEmpty", GunsTool.getGunIntTag(GunData.from(stack).tag, "ArrowEmpty") - 1);
         }
     }
 
@@ -179,15 +153,6 @@ public class BocekItem extends GunItem implements GeoItem {
     @Override
     public String getGunDisplayName() {
         return "Bocek";
-    }
-
-    @Override
-    public boolean canApplyPerk(Perk perk) {
-        return switch (perk.type) {
-            case AMMO -> !perk.descriptionId.equals("butterfly_bullet") && perk != ModPerks.MICRO_MISSILE.get();
-            case FUNCTIONAL -> perk == ModPerks.FIELD_DOCTOR.get() || perk == ModPerks.INTELLIGENT_CHIP.get();
-            case DAMAGE -> perk == ModPerks.MONSTER_HUNTER.get() || perk == ModPerks.KILLING_TALLY.get();
-        };
     }
 
     @Override
@@ -246,13 +211,12 @@ public class BocekItem extends GunItem implements GeoItem {
         }
     }
 
-
     public void spawnBullet(GunData data, Player player, double power, boolean zoom) {
         ItemStack stack = data.stack;
 
         var perk = data.perk.get(Perk.Type.AMMO);
         float headshot = (float) data.headshot();
-        float velocity = (float) (24 * power * (float) perkSpeed(data));
+        float velocity = (float) (24 * power);
         float bypassArmorRate = (float) data.bypassArmor();
         double damage;
 
@@ -271,60 +235,14 @@ public class BocekItem extends GunItem implements GeoItem {
                 .shooter(player)
                 .headShot(headshot)
                 .zoom(zoom)
+                .bypassArmorRate(bypassArmorRate)
                 .setGunItemId(stack);
 
-        if (perk instanceof AmmoPerk ammoPerk) {
-            int level = data.perk.getLevel(perk);
-
-            bypassArmorRate += ammoPerk.bypassArmorRate + (perk == ModPerks.AP_BULLET.get() ? 0.05f * (level - 1) : 0);
-            projectile.setRGB(ammoPerk.rgb);
-
-            if (!ammoPerk.mobEffects.get().isEmpty()) {
-                int amplifier;
-                if (perk.descriptionId.equals("blade_bullet")) {
-                    amplifier = level / 3;
-                } else if (perk.descriptionId.equals("bread_bullet")) {
-                    amplifier = 1;
-                } else {
-                    amplifier = level - 1;
-                }
-
-                ArrayList<MobEffectInstance> mobEffectInstances = new ArrayList<>();
-                for (MobEffect effect : ammoPerk.mobEffects.get()) {
-                    mobEffectInstances.add(new MobEffectInstance(effect, 70 + 30 * level, amplifier));
-                }
-                projectile.effect(mobEffectInstances);
+        for (Perk.Type type : Perk.Type.values()) {
+            var instance = data.perk.getInstance(type);
+            if (instance != null) {
+                instance.perk().modifyProjectile(data, instance, projectile);
             }
-
-            if (perk.descriptionId.equals("bread_bullet")) {
-                projectile.knockback(level * 0.3f);
-                projectile.forceKnockback();
-            }
-        }
-
-        bypassArmorRate = Math.max(bypassArmorRate, 0);
-        projectile.bypassArmorRate(bypassArmorRate);
-
-        if (perk == ModPerks.SILVER_BULLET.get()) {
-            int level = data.perk.getLevel(perk);
-            projectile.undeadMultiple(1.0f + 0.5f * level);
-        } else if (perk == ModPerks.BEAST_BULLET.get()) {
-            projectile.beast();
-        } else if (perk == ModPerks.JHP_BULLET.get()) {
-            int level = data.perk.getLevel(perk);
-            projectile.jhpBullet(level);
-        } else if (perk == ModPerks.HE_BULLET.get()) {
-            int level = data.perk.getLevel(perk);
-            projectile.heBullet(level);
-        } else if (perk == ModPerks.INCENDIARY_BULLET.get()) {
-            int level = data.perk.getLevel(perk);
-            projectile.fireBullet(level, !zoom);
-        }
-
-        var dmgPerk = data.perk.get(Perk.Type.DAMAGE);
-        if (dmgPerk == ModPerks.MONSTER_HUNTER.get()) {
-            int perkLevel = data.perk.getLevel(dmgPerk);
-            projectile.monsterMultiple(0.1f + 0.1f * perkLevel);
         }
 
         projectile.setPos(player.getX() - 0.1 * player.getLookAngle().x, player.getEyeY() - 0.1 - 0.1 * player.getLookAngle().y, player.getZ() + -0.1 * player.getLookAngle().z);

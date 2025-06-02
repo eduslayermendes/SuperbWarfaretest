@@ -1,4 +1,5 @@
 {
+  "ID": "superbwarfare:taser",
   "Spread": 2,
   "RecoilX": 0.0001,
   "RecoilY": 0.002,
@@ -8,5 +9,12 @@
   "Weight": 1,
   "EmptyReloadTime": 58,
   "RPM": 240,
-  "AmmoType": "superbwarfare:taser_electrode"
+  "AmmoType": "superbwarfare:taser_electrode",
+  "AvailablePerks": [
+    "superbwarfare:longer_wire",
+    "superbwarfare:regeneration",
+    "superbwarfare:powerful_attraction",
+    "superbwarfare:intelligent_chip",
+    "superbwarfare:volt_overload"
+  ]
 }

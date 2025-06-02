@@ -2,12 +2,16 @@ package com.atsuishio.superbwarfare.item.gun;
 
 import com.atsuishio.superbwarfare.Mod;
 import com.atsuishio.superbwarfare.client.tooltip.component.GunImageComponent;
+import com.atsuishio.superbwarfare.data.gun.GunData;
+import com.atsuishio.superbwarfare.data.gun.ProjectileInfo;
+import com.atsuishio.superbwarfare.data.gun.value.AttachmentType;
+import com.atsuishio.superbwarfare.data.launchable.LaunchableEntityTool;
+import com.atsuishio.superbwarfare.data.launchable.ShootData;
+import com.atsuishio.superbwarfare.entity.projectile.ExplosiveProjectile;
 import com.atsuishio.superbwarfare.entity.projectile.ProjectileEntity;
 import com.atsuishio.superbwarfare.init.ModPerks;
 import com.atsuishio.superbwarfare.init.ModSounds;
 import com.atsuishio.superbwarfare.init.ModTags;
-import com.atsuishio.superbwarfare.item.gun.data.GunData;
-import com.atsuishio.superbwarfare.item.gun.data.value.AttachmentType;
 import com.atsuishio.superbwarfare.network.PlayerVariable;
 import com.atsuishio.superbwarfare.perk.AmmoPerk;
 import com.atsuishio.superbwarfare.perk.Perk;
@@ -17,39 +21,55 @@ import com.google.common.collect.Multimap;
 import net.minecraft.core.BlockPos;
 import net.minecraft.nbt.CompoundTag;
 import net.minecraft.resources.ResourceLocation;
+import net.minecraft.server.level.ServerLevel;
 import net.minecraft.server.level.ServerPlayer;
 import net.minecraft.sounds.SoundEvent;
 import net.minecraft.util.Mth;
-import net.minecraft.world.effect.MobEffect;
-import net.minecraft.world.effect.MobEffectInstance;
+import net.minecraft.util.RandomSource;
 import net.minecraft.world.entity.Entity;
+import net.minecraft.world.entity.EntityType;
 import net.minecraft.world.entity.EquipmentSlot;
 import net.minecraft.world.entity.LivingEntity;
 import net.minecraft.world.entity.ai.attributes.Attribute;
 import net.minecraft.world.entity.ai.attributes.AttributeModifier;
 import net.minecraft.world.entity.ai.attributes.Attributes;
 import net.minecraft.world.entity.player.Player;
+import net.minecraft.world.entity.projectile.Projectile;
 import net.minecraft.world.inventory.tooltip.TooltipComponent;
 import net.minecraft.world.item.Item;
 import net.minecraft.world.item.ItemStack;
 import net.minecraft.world.item.enchantment.Enchantment;
 import net.minecraft.world.level.Level;
 import net.minecraft.world.level.block.state.BlockState;
+import net.minecraft.world.phys.Vec3;
 import net.minecraftforge.event.entity.player.EntityItemPickupEvent;
 import net.minecraftforge.eventbus.api.SubscribeEvent;
 import net.minecraftforge.registries.ForgeRegistries;
 import org.jetbrains.annotations.NotNull;
+import software.bernie.geckolib.animatable.GeoItem;
+import software.bernie.geckolib.animatable.SingletonGeoAnimatable;
+import software.bernie.geckolib.core.animatable.instance.AnimatableInstanceCache;
+import software.bernie.geckolib.util.GeckoLibUtil;
 
 import javax.annotation.ParametersAreNonnullByDefault;
 import java.util.*;
+import java.util.concurrent.atomic.AtomicReference;
 import java.util.function.Consumer;
 
 @net.minecraftforge.fml.common.Mod.EventBusSubscriber
-public abstract class GunItem extends Item {
+public abstract class GunItem extends Item implements GeoItem {
+
+    private final AnimatableInstanceCache cache = GeckoLibUtil.createInstanceCache(this);
 
     public GunItem(Properties properties) {
         super(properties);
         addReloadTimeBehavior(this.reloadTimeBehaviors);
+        SingletonGeoAnimatable.registerSyncedAnimatable(this);
+    }
+
+    @Override
+    public AnimatableInstanceCache getAnimatableInstanceCache() {
+        return this.cache;
     }
 
     @Override
@@ -72,6 +92,11 @@ public abstract class GunItem extends Item {
     }
 
     @Override
+    public boolean isPerspectiveAware() {
+        return true;
+    }
+
+    @Override
     @ParametersAreNonnullByDefault
     public boolean canAttackBlock(BlockState pState, Level pLevel, BlockPos pPos, Player pPlayer) {
         return false;
@@ -80,7 +105,11 @@ public abstract class GunItem extends Item {
     @Override
     @ParametersAreNonnullByDefault
     public void inventoryTick(ItemStack stack, Level level, Entity entity, int slot, boolean selected) {
-        if (!(entity instanceof LivingEntity) || !(stack.getItem() instanceof GunItem gunItem)) return;
+        if (!(entity instanceof LivingEntity living) || !(stack.getItem() instanceof GunItem gunItem)) return;
+
+        if (level instanceof ServerLevel serverLevel) {
+            GeoItem.getOrAssignId(stack, serverLevel);
+        }
 
         var data = GunData.from(stack);
 
@@ -91,7 +120,13 @@ public abstract class GunItem extends Item {
             }
         }
         data.draw.set(false);
-        handleGunPerks(data);
+
+        for (Perk.Type type : Perk.Type.values()) {
+            var instance = data.perk.getInstance(type);
+            if (instance != null) {
+                instance.perk().tick(data, instance, living);
+            }
+        }
 
         var hasBulletInBarrel = gunItem.hasBulletInBarrel(stack);
         var ammoCount = data.ammo.get();
@@ -109,8 +144,7 @@ public abstract class GunItem extends Item {
             });
         }
 
-        //冷却
-
+        // 冷却
         double cooldown = 0;
         if (entity.wasInPowderSnow) {
             cooldown = 0.15;
@@ -136,13 +170,24 @@ public abstract class GunItem extends Item {
     public Multimap<Attribute, AttributeModifier> getAttributeModifiers(EquipmentSlot slot, ItemStack stack) {
         Multimap<Attribute, AttributeModifier> map = super.getAttributeModifiers(slot, stack);
         UUID uuid = new UUID(slot.toString().hashCode(), 0);
-        if (slot == EquipmentSlot.MAINHAND) {
-            var data = GunData.from(stack);
-            map = HashMultimap.create(map);
-            map.put(Attributes.MOVEMENT_SPEED, new AttributeModifier(
-                    uuid, Mod.ATTRIBUTE_MODIFIER,
-                    -0.01f - 0.005f * data.weight(),
-                    AttributeModifier.Operation.MULTIPLY_BASE
+        if (slot != EquipmentSlot.MAINHAND) return map;
+
+        var data = GunData.from(stack);
+        map = HashMultimap.create(map);
+
+        // 移速
+        map.put(Attributes.MOVEMENT_SPEED, new AttributeModifier(
+                uuid, Mod.ATTRIBUTE_MODIFIER,
+                -0.01f - 0.005f * data.weight(),
+                AttributeModifier.Operation.MULTIPLY_BASE
+        ));
+
+        // 近战伤害
+        if (data.meleeDamage() > 0) {
+            map.put(Attributes.ATTACK_DAMAGE, new AttributeModifier(
+                    BASE_ATTACK_DAMAGE_UUID, Mod.ATTRIBUTE_MODIFIER,
+                    data.meleeDamage(),
+                    AttributeModifier.Operation.ADDITION
             ));
         }
         return map;
@@ -187,67 +232,6 @@ public abstract class GunItem extends Item {
         return false;
     }
 
-    private void handleGunPerks(GunData data) {
-        var perk = data.perk;
-
-        perk.reduceCooldown(ModPerks.HEAL_CLIP, "HealClipTime");
-
-        perk.reduceCooldown(ModPerks.KILL_CLIP, "KillClipReloadTime");
-        perk.reduceCooldown(ModPerks.KILL_CLIP, "KillClipTime");
-
-        perk.reduceCooldown(ModPerks.FOURTH_TIMES_CHARM, "FourthTimesCharmTick");
-
-        perk.reduceCooldown(ModPerks.HEAD_SEEKER, "HeadSeeker");
-
-        perk.reduceCooldown(ModPerks.DESPERADO, "DesperadoTime");
-        perk.reduceCooldown(ModPerks.DESPERADO, "DesperadoTimePost");
-
-        if (perk.getLevel(ModPerks.FOURTH_TIMES_CHARM) > 0) {
-            var tag = data.perk.getTag(ModPerks.FOURTH_TIMES_CHARM);
-            int count = perk.getTag(ModPerks.FOURTH_TIMES_CHARM).getInt("FourthTimesCharmCount");
-
-            if (count >= 4) {
-                tag.remove("FourthTimesCharmTick");
-                tag.remove("FourthTimesCharmCount");
-
-                int mag = data.magazine();
-                data.ammo.set(Math.min(mag, data.ammo.get() + 2));
-            }
-        }
-
-    }
-
-    public boolean canApplyPerk(Perk perk) {
-        return true;
-    }
-
-    /**
-     * 是否使用弹匣换弹
-     *
-     * @param stack 武器物品
-     */
-    public boolean isMagazineReload(ItemStack stack) {
-        return false;
-    }
-
-    /**
-     * 是否使用弹夹换弹
-     *
-     * @param stack 武器物品
-     */
-    public boolean isClipReload(ItemStack stack) {
-        return false;
-    }
-
-    /**
-     * 是否是单发装填换弹
-     *
-     * @param stack 武器物品
-     */
-    public boolean isIterativeReload(ItemStack stack) {
-        return false;
-    }
-
     /**
      * 开膛待击
      *
@@ -263,15 +247,6 @@ public abstract class GunItem extends Item {
      * @param stack 武器物品
      */
     public boolean hasBulletInBarrel(ItemStack stack) {
-        return false;
-    }
-
-    /**
-     * 武器是否为全自动武器
-     *
-     * @param stack 武器物品
-     */
-    public boolean isAutoWeapon(ItemStack stack) {
         return false;
     }
 
@@ -353,14 +328,7 @@ public abstract class GunItem extends Item {
      * @param stack 武器物品
      */
     public boolean hasMeleeAttack(ItemStack stack) {
-        return false;
-    }
-
-    /**
-     * 获取武器可用的开火模式
-     */
-    public int getAvailableFireModes() {
-        return 0;
+        return GunData.from(stack).meleeDamage() > 0;
     }
 
     /**
@@ -488,18 +456,6 @@ public abstract class GunItem extends Item {
         return "";
     }
 
-    public enum FireMode {
-        SEMI(1),
-        BURST(2),
-        AUTO(4);
-
-        public final int flag;
-
-        FireMode(int i) {
-            this.flag = i;
-        }
-    }
-
     public final Map<Integer, Consumer<GunData>> reloadTimeBehaviors = new HashMap<>();
 
     /**
@@ -524,14 +480,9 @@ public abstract class GunItem extends Item {
             data.holdOpen.set(true);
         }
 
-        // TODO 替换左轮判断方式
-        if (data.stack.is(ModTags.Items.REVOLVER)) {
-            data.canImmediatelyShoot.set(true);
-        }
 
-        // TODO 替换左轮判断方式
         // 判断是否为栓动武器（BoltActionTime > 0），并在开火后给一个需要上膛的状态
-        if (data.defaultActionTime() > 0 && data.ammo.get() > (data.stack.is(ModTags.Items.REVOLVER) ? 0 : 1)) {
+        if (data.defaultActionTime() > 0 && data.ammo.get() > 1) {
             data.bolt.needed.set(true);
         }
     }
@@ -632,14 +583,6 @@ public abstract class GunItem extends Item {
     public void onFireKeyRelease(final GunData data, Player player, double power, boolean zoom) {
     }
 
-    public static double perkSpeed(GunData data) {
-        var perk = data.perk.get(Perk.Type.AMMO);
-        if (perk instanceof AmmoPerk ammoPerk) {
-            return ammoPerk.speedRate;
-        }
-        return 1;
-    }
-
     public static double perkDamage(Perk perk) {
         if (perk instanceof AmmoPerk ammoPerk) {
             return ammoPerk.damageRate;
@@ -654,80 +597,110 @@ public abstract class GunItem extends Item {
      */
     public boolean shootBullet(Player player, GunData data, double spread, boolean zoom) {
         var stack = data.stack;
+        var level = player.level();
 
         float headshot = (float) data.headshot();
         float damage = (float) data.damage();
-        float velocity = (float) (data.velocity() * perkSpeed(data));
-        int projectileAmount = data.projectileAmount();
+        float velocity = (float) data.velocity();
         float bypassArmorRate = (float) data.bypassArmor();
-        var perkInstance = data.perk.getInstance(Perk.Type.AMMO);
-        var perk = perkInstance != null ? perkInstance.perk() : null;
 
-        ProjectileEntity projectile = new ProjectileEntity(player.level())
-                .shooter(player)
-                .damage(perk instanceof AmmoPerk ammoPerk && ammoPerk.slug ? projectileAmount * damage : damage)
-                .headShot(headshot)
-                .zoom(zoom)
-                .setGunItemId(stack);
+        var projectileType = data.projectileType();
+        var projectileInfo = data.projectileInfo();
+        AtomicReference<Entity> entityHolder = new AtomicReference<>();
+        EntityType.byString(projectileType).ifPresent(entityType -> {
+            var entity = entityType.create(level);
+            if (entity == null) return;
 
-        if (perk instanceof AmmoPerk ammoPerk) {
-            int level = data.perk.getLevel(perk);
-
-            bypassArmorRate += ammoPerk.bypassArmorRate + (perk == ModPerks.AP_BULLET.get() ? 0.05f * (level - 1) : 0);
-            projectile.setRGB(ammoPerk.rgb);
-
-            if (!ammoPerk.mobEffects.get().isEmpty()) {
-                int amplifier;
-                if (perk.descriptionId.equals("blade_bullet")) {
-                    amplifier = level / 3;
-                } else if (perk.descriptionId.equals("bread_bullet")) {
-                    amplifier = 1;
-                } else {
-                    amplifier = level - 1;
-                }
-
-                ArrayList<MobEffectInstance> mobEffectInstances = new ArrayList<>();
-                for (MobEffect effect : ammoPerk.mobEffects.get()) {
-                    mobEffectInstances.add(new MobEffectInstance(effect, 70 + 30 * level, amplifier));
-                }
-                projectile.effect(mobEffectInstances);
+            if (entity instanceof Projectile projectileEntity) {
+                projectileEntity.setOwner(player);
             }
 
-            if (perk.descriptionId.equals("bread_bullet")) {
-                projectile.knockback(level * 0.3f);
-                projectile.forceKnockback();
+            // SBW子弹弹射物专属属性
+            if (entity instanceof ProjectileEntity projectile) {
+                projectile.shooter(player)
+                        .damage(damage)
+                        .headShot(headshot)
+                        .zoom(zoom)
+                        .bypassArmorRate(bypassArmorRate)
+                        .setGunItemId(stack);
+            }
+
+            // SBW爆炸物专属属性
+            if (entity instanceof ExplosiveProjectile explosive) {
+                explosive.setDamage(damage);
+                explosive.setExplosionDamage((float) data.explosionDamage());
+                explosive.setExplosionRadius((float) data.explosionRadius());
+            }
+
+            // 填充其他自定义NBT数据
+            if (projectileInfo.data != null) {
+                var tag = LaunchableEntityTool.getModifiedTag(projectileInfo,
+                        new ShootData(player.getUUID(), damage, data.explosionDamage(), data.explosionRadius(), data.spread())
+                );
+                if (tag != null) {
+                    entity.load(tag);
+                }
+
+            } else if (LaunchableEntityTool.launchableEntitiesData.containsKey(projectileType)) {
+                var newInfo = new ProjectileInfo();
+                newInfo.data = LaunchableEntityTool.launchableEntitiesData.get(projectileType);
+                newInfo.type = projectileType;
+
+                var tag = LaunchableEntityTool.getModifiedTag(
+                        newInfo,
+                        new ShootData(player.getUUID(), damage, data.explosionDamage(), data.explosionRadius(), data.spread())
+                );
+                if (tag != null) {
+                    entity.load(tag);
+                }
+            }
+
+            entityHolder.set(entity);
+        });
+
+        var entity = entityHolder.get();
+        if (entity == null) return false;
+
+        for (Perk.Type type : Perk.Type.values()) {
+            var instance = data.perk.getInstance(type);
+            if (instance != null) {
+                instance.perk().modifyProjectile(data, instance, entity);
+                if (instance.perk() instanceof AmmoPerk ammoPerk) {
+                    velocity = (float) ammoPerk.getModifiedVelocity(data, instance);
+                }
             }
         }
 
-        bypassArmorRate = Math.max(bypassArmorRate, 0);
-        projectile.bypassArmorRate(bypassArmorRate);
+        // 发射任意实体
+        entity.setPos(player.getX() - 0.1 * player.getLookAngle().x, player.getEyeY() - 0.1 - 0.1 * player.getLookAngle().y, player.getZ() + -0.1 * player.getLookAngle().z);
 
-        if (perk == ModPerks.SILVER_BULLET.get()) {
-            int level = data.perk.getLevel(perk);
-            projectile.undeadMultiple(1.0f + 0.5f * level);
-        } else if (perk == ModPerks.BEAST_BULLET.get()) {
-            projectile.beast();
-        } else if (perk == ModPerks.JHP_BULLET.get()) {
-            int level = data.perk.getLevel(perk);
-            projectile.jhpBullet(level);
-        } else if (perk == ModPerks.HE_BULLET.get()) {
-            int level = data.perk.getLevel(perk);
-            projectile.heBullet(level);
-        } else if (perk == ModPerks.INCENDIARY_BULLET.get()) {
-            int level = data.perk.getLevel(perk);
-            projectile.fireBullet(level, stack.is(ModTags.Items.SHOTGUN));
+        var x = player.getLookAngle().x;
+        var y = player.getLookAngle().y + 0.001f;
+        var z = player.getLookAngle().z;
+
+        if (entity instanceof Projectile projectile) {
+            projectile.shoot(x, y, z, velocity, (float) spread);
+        } else {
+            var random = RandomSource.create();
+            Vec3 vec3 = new Vec3(x, y, z)
+                    .normalize()
+                    .add(
+                            random.triangle(0.0, 0.0172275 * spread),
+                            random.triangle(0.0, 0.0172275 * spread),
+                            random.triangle(0.0, 0.0172275 * spread)
+                    )
+                    .scale(velocity);
+
+            entity.setDeltaMovement(vec3);
+            entity.hasImpulse = true;
+            double d0 = vec3.horizontalDistance();
+            entity.setYRot((float) (Mth.atan2(vec3.x, vec3.z) * 180.0F / (float) Math.PI));
+            entity.setXRot((float) (Mth.atan2(vec3.y, d0) * 180.0F / (float) Math.PI));
+            entity.yRotO = entity.getYRot();
+            entity.xRotO = entity.getXRot();
         }
 
-        var dmgPerk = data.perk.get(Perk.Type.DAMAGE);
-        if (dmgPerk == ModPerks.MONSTER_HUNTER.get()) {
-            int level = data.perk.getLevel(dmgPerk);
-            projectile.monsterMultiple(0.1f + 0.1f * level);
-        }
-
-        projectile.setPos(player.getX() - 0.1 * player.getLookAngle().x, player.getEyeY() - 0.1 - 0.1 * player.getLookAngle().y, player.getZ() + -0.1 * player.getLookAngle().z);
-        projectile.shoot(player, player.getLookAngle().x, player.getLookAngle().y + 0.001f, player.getLookAngle().z, stack.is(ModTags.Items.SHOTGUN) && perk == ModPerks.INCENDIARY_BULLET.get() ? 4.5f : velocity, (float) spread);
-        player.level().addFreshEntity(projectile);
-
+        level.addFreshEntity(entity);
         return true;
     }
 }

@@ -1,7 +1,12 @@
 package com.atsuishio.superbwarfare.perk;
 
+import com.atsuishio.superbwarfare.data.gun.DamageReduce;
+import com.atsuishio.superbwarfare.data.gun.GunData;
+import com.atsuishio.superbwarfare.entity.projectile.ProjectileEntity;
 import net.minecraft.util.Mth;
 import net.minecraft.world.effect.MobEffect;
+import net.minecraft.world.effect.MobEffectInstance;
+import net.minecraft.world.entity.Entity;
 
 import java.util.ArrayList;
 import java.util.function.Supplier;
@@ -23,6 +28,54 @@ public class AmmoPerk extends Perk {
         this.slug = builder.slug;
         this.rgb = builder.rgb;
         this.mobEffects = () -> builder.mobEffects;
+    }
+
+    public AmmoPerk(String descriptionId, Type type) {
+        super(descriptionId, type);
+        this.rgb = new float[]{1, 222 / 255f, 39 / 255f};
+        this.mobEffects = ArrayList::new;
+    }
+
+    @Override
+    public void modifyProjectile(GunData data, PerkInstance instance, Entity entity) {
+        if (!(entity instanceof ProjectileEntity projectile)) return;
+        projectile.setRGB(this.rgb);
+        projectile.bypassArmorRate((float) Math.max(this.bypassArmorRate + data.bypassArmor(), 0));
+        if (this.slug) {
+            projectile.setDamage((float) (data.damage() * data.projectileAmount()));
+        }
+        if (!this.mobEffects.get().isEmpty()) {
+            int amplifier = this.getEffectAmplifier(instance);
+            ArrayList<MobEffectInstance> mobEffectInstances = new ArrayList<>();
+            for (MobEffect effect : this.mobEffects.get()) {
+                mobEffectInstances.add(new MobEffectInstance(effect, 70 + 30 * level, amplifier));
+            }
+            projectile.effect(mobEffectInstances);
+        }
+    }
+
+    public int getEffectAmplifier(PerkInstance instance) {
+        return instance.level() - 1;
+    }
+
+    public double getModifiedVelocity(GunData data, PerkInstance instance) {
+        return data.velocity() * this.speedRate;
+    }
+
+    @Override
+    public double getModifiedDamageReduceRate(DamageReduce reduce) {
+        if (this.slug && reduce.type == DamageReduce.ReduceType.SHOTGUN) {
+            return 0.015;
+        }
+        return super.getModifiedDamageReduceRate(reduce);
+    }
+
+    @Override
+    public double getModifiedDamageReduceMinDistance(DamageReduce reduce) {
+        if (this.slug && reduce.type == DamageReduce.ReduceType.SHOTGUN) {
+            return super.getModifiedDamageReduceMinDistance(reduce) * 2;
+        }
+        return super.getModifiedDamageReduceMinDistance(reduce);
     }
 
     public static class Builder {

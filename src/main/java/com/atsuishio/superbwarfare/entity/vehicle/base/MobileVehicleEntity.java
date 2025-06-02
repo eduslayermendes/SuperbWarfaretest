@@ -47,9 +47,17 @@ import org.joml.Vector3f;
 import org.joml.Vector4f;
 
 import java.util.List;
+import java.util.function.Consumer;
 import java.util.stream.StreamSupport;
 
 public abstract class MobileVehicleEntity extends EnergyVehicleEntity implements ControllableVehicle {
+
+    public static Consumer<MobileVehicleEntity> trackSound = vehicle -> {
+    };
+    public static Consumer<MobileVehicleEntity> engineSound = vehicle -> {
+    };
+    public static Consumer<MobileVehicleEntity> swimSound = vehicle -> {
+    };
 
     public static final EntityDataAccessor<Integer> CANNON_RECOIL_TIME = SynchedEntityData.defineId(MobileVehicleEntity.class, EntityDataSerializers.INT);
 
@@ -57,12 +65,17 @@ public abstract class MobileVehicleEntity extends EnergyVehicleEntity implements
     public static final EntityDataAccessor<Float> YAW = SynchedEntityData.defineId(MobileVehicleEntity.class, EntityDataSerializers.FLOAT);
 
     public static final EntityDataAccessor<Integer> FIRE_ANIM = SynchedEntityData.defineId(MobileVehicleEntity.class, EntityDataSerializers.INT);
-    public static final EntityDataAccessor<Integer> HEAT = SynchedEntityData.defineId(MobileVehicleEntity.class, EntityDataSerializers.INT);
     public static final EntityDataAccessor<Integer> COAX_HEAT = SynchedEntityData.defineId(MobileVehicleEntity.class, EntityDataSerializers.INT);
 
     public static final EntityDataAccessor<Integer> AMMO = SynchedEntityData.defineId(MobileVehicleEntity.class, EntityDataSerializers.INT);
     public static final EntityDataAccessor<Integer> DECOY_COUNT = SynchedEntityData.defineId(MobileVehicleEntity.class, EntityDataSerializers.INT);
+    public static final EntityDataAccessor<Integer> GEAR_ROT = SynchedEntityData.defineId(MobileVehicleEntity.class, EntityDataSerializers.INT);
+    public static final EntityDataAccessor<Boolean> GEAR_UP = SynchedEntityData.defineId(MobileVehicleEntity.class, EntityDataSerializers.BOOLEAN);
+    public static final EntityDataAccessor<Float> PLANE_BREAK = SynchedEntityData.defineId(MobileVehicleEntity.class, EntityDataSerializers.FLOAT);
 
+    private Vec3 previousVelocity = Vec3.ZERO;
+
+    public double acceleration;
     public int decoyReloadCoolDown;
     public boolean leftInputDown;
     public boolean rightInputDown;
@@ -71,9 +84,13 @@ public abstract class MobileVehicleEntity extends EnergyVehicleEntity implements
     public boolean upInputDown;
     public boolean downInputDown;
     public boolean decoyInputDown;
+    public boolean fireInputDown;
+    public boolean sprintInputDown;
     public double lastTickSpeed;
     public double lastTickVerticalSpeed;
     public int collisionCoolDown;
+
+    private boolean wasEngineRunning = false;
 
     public float rudderRot;
     public float rudderRotO;
@@ -97,12 +114,27 @@ public abstract class MobileVehicleEntity extends EnergyVehicleEntity implements
     public double recoilShake;
     public double recoilShakeO;
 
-    public boolean cannotFire;
     public boolean cannotFireCoax;
     public int reloadCoolDown;
 
     public double velocityO;
     public double velocity;
+
+    public float flap1LRot;
+    public float flap1LRotO;
+    public float flap1RRot;
+    public float flap1RRotO;
+    public float flap1L2Rot;
+    public float flap1L2RotO;
+    public float flap1R2Rot;
+    public float flap1R2RotO;
+    public float flap2LRot;
+    public float flap2LRotO;
+    public float flap2RRot;
+    public float flap2RRotO;
+    public float flap3Rot;
+    public float flap3RotO;
+    public float gearRotO;
 
     public MobileVehicleEntity(EntityType<?> pEntityType, Level pLevel) {
         super(pEntityType, pLevel);
@@ -111,19 +143,23 @@ public abstract class MobileVehicleEntity extends EnergyVehicleEntity implements
     @Override
     public void processInput(short keys) {
         leftInputDown
-                = (keys & 0b0000001) > 0;
+                = (keys & 0b000000001) > 0;
         rightInputDown
-                = (keys & 0b0000010) > 0;
+                = (keys & 0b000000010) > 0;
         forwardInputDown
-                = (keys & 0b0000100) > 0;
+                = (keys & 0b000000100) > 0;
         backInputDown
-                = (keys & 0b0001000) > 0;
+                = (keys & 0b000001000) > 0;
         upInputDown
-                = (keys & 0b0010000) > 0;
+                = (keys & 0b000010000) > 0;
         downInputDown
-                = (keys & 0b0100000) > 0;
+                = (keys & 0b000100000) > 0;
         decoyInputDown
-                = (keys & 0b1000000) > 0;
+                = (keys & 0b001000000) > 0;
+        fireInputDown
+                = (keys & 0b010000000) > 0;
+        sprintInputDown
+                = (keys & 0b100000000) > 0;
     }
 
     @Override
@@ -140,6 +176,15 @@ public abstract class MobileVehicleEntity extends EnergyVehicleEntity implements
 
     @Override
     public void baseTick() {
+        if (!this.wasEngineRunning && this.engineRunning() && this.level().isClientSide()) {
+            engineSound.accept(this);
+            swimSound.accept(this);
+            if (this.hasTracks()) {
+                trackSound.accept(this);
+            }
+        }
+        this.wasEngineRunning = this.engineRunning();
+
         turretYRotO = this.getTurretYRot();
         turretXRotO = this.getTurretXRot();
 
@@ -168,7 +213,28 @@ public abstract class MobileVehicleEntity extends EnergyVehicleEntity implements
             collisionCoolDown--;
         }
 
+        flap1LRotO = this.getFlap1LRot();
+        flap1RRotO = this.getFlap1RRot();
+        flap1L2RotO = this.getFlap1L2Rot();
+        flap1R2RotO = this.getFlap1R2Rot();
+        flap2LRotO = this.getFlap2LRot();
+        flap2RRotO = this.getFlap2RRot();
+        flap3RotO = this.getFlap3Rot();
+        gearRotO = entityData.get(GEAR_ROT);
+
         super.baseTick();
+
+        // 获取当前速度（deltaMovement 是当前速度向量）
+        Vec3 currentVelocity = this.getDeltaMovement();
+
+        // 计算加速度向量（时间间隔 Δt = 0.05秒）
+        Vec3 accelerationVec = currentVelocity.subtract(previousVelocity).scale(20); // scale(1/0.05) = scale(20)
+
+        // 计算加速度的绝对值
+        acceleration = accelerationVec.length() * 20;
+
+        // 更新前一时刻的速度
+        previousVelocity = currentVelocity;
 
         double direct = (90 - calculateAngle(this.getDeltaMovement(), this.getViewVector(1))) / 90;
         setVelocity(Mth.lerp(0.4, getVelocity(), getDeltaMovement().horizontalDistance() * direct * 20));
@@ -183,20 +249,12 @@ public abstract class MobileVehicleEntity extends EnergyVehicleEntity implements
             turretYRotO = deltaT + getTurretYRot();
         }
 
-        if (this.entityData.get(HEAT) > 0) {
-            this.entityData.set(HEAT, this.entityData.get(HEAT) - 1);
-        }
-
         if (this.entityData.get(COAX_HEAT) > 0) {
             this.entityData.set(COAX_HEAT, this.entityData.get(COAX_HEAT) - 1);
         }
 
         if (this.entityData.get(FIRE_ANIM) > 0) {
             this.entityData.set(FIRE_ANIM, this.entityData.get(FIRE_ANIM) - 1);
-        }
-
-        if (this.entityData.get(HEAT) < 40) {
-            cannotFire = false;
         }
 
         if (this.entityData.get(COAX_HEAT) < 40) {
@@ -207,10 +265,6 @@ public abstract class MobileVehicleEntity extends EnergyVehicleEntity implements
             decoyReloadCoolDown--;
         }
 
-        if (this.entityData.get(HEAT) > 100 && !cannotFire) {
-            cannotFire = true;
-            this.level().playSound(null, this.getOnPos(), ModSounds.MINIGUN_OVERHEAT.get(), SoundSource.PLAYERS, 1, 1);
-        }
         if (this.entityData.get(COAX_HEAT) > 100) {
             cannotFireCoax = true;
             this.level().playSound(null, this.getOnPos(), ModSounds.MINIGUN_OVERHEAT.get(), SoundSource.PLAYERS, 1, 1);
@@ -224,57 +278,28 @@ public abstract class MobileVehicleEntity extends EnergyVehicleEntity implements
 
         preventStacking();
         crushEntities(this.getDeltaMovement());
-        if (!(this instanceof DroneEntity)) {
-            this.setDeltaMovement(this.getDeltaMovement().add(0.0, -0.06, 0.0));
-        }
+
+        this.setDeltaMovement(this.getDeltaMovement().add(0.0, -0.06, 0.0));
+
         this.move(MoverType.SELF, this.getDeltaMovement());
         baseCollideBlock();
 
         this.refreshDimensions();
     }
 
-//    public Vector3f calculateTerrainNormal() {
-//        BlockPos[] checkPoints = {
-//                this.blockPosition().offset(1, 0, 1),
-//                this.blockPosition().offset(-1, 0, 1),
-//                this.blockPosition().offset(1, 0, -1),
-//                this.blockPosition().offset(-1, 0, -1)
-//        };
-//
-//        List<Vec3> surfacePoints = new ArrayList<>();
-//        for (BlockPos pos : checkPoints) {
-//            BlockState state = level().getBlockState(pos);
-//            VoxelShape shape = state.getCollisionShape(level(), pos);
-//            if (!shape.isEmpty()) {
-//                double height = shape.max(Direction.Axis.Y);
-//                surfacePoints.add(new Vec3(pos.getX(), pos.getY() + height, pos.getZ()));
-//            }
-//        }
-//
-//        return surfacePoints;
-//    }
-
-//    public static Quaternionf calculateRotationQuaternion(Vector3f normal) {
-//        Vector3f up = new Vector3f(0, 1, 0);
-//        Vector3f axis = new Vector3f();
-//        normal.cross(up, axis);
-//        float angle = (float) Math.acos(normal.dot(up));
-//        return new Quaternionf().rotationAxis(angle, axis);
-//    }
-
     //烟雾诱饵
-    public void releaseSmokeDecoy() {
+    public void releaseSmokeDecoy(Vec3 vec3) {
         if (decoyInputDown) {
             if (this.entityData.get(DECOY_COUNT) > 0 && this.level() instanceof ServerLevel) {
                 Entity passenger = getFirstPassenger();
-                for (int i = 0; i < 16; i++) {
+                for (int i = 0; i < 8; i++) {
                     SmokeDecoyEntity smokeDecoyEntity = new SmokeDecoyEntity((LivingEntity) passenger, this.level());
-                    smokeDecoyEntity.setPos(this.getX(), this.getY() + 2, this.getZ());
-                    smokeDecoyEntity.decoyShoot(this, this.getViewVector(1).yRot((11.25F + 22.5F * i) * Mth.DEG_TO_RAD), 3.2f, 8);
+                    smokeDecoyEntity.setPos(this.getX(), this.getY() + getBbHeight(), this.getZ());
+                    smokeDecoyEntity.decoyShoot(this, vec3.yRot((-78.75f + 22.5F * i) * Mth.DEG_TO_RAD), 4f, 8);
                     this.level().addFreshEntity(smokeDecoyEntity);
                 }
                 this.level().playSound(null, this, ModSounds.DECOY_FIRE.get(), this.getSoundSource(), 1, 1);
-                decoyReloadCoolDown = 400;
+                decoyReloadCoolDown = 500;
                 this.getEntityData().set(DECOY_COUNT, this.getEntityData().get(DECOY_COUNT) - 1);
             }
             decoyInputDown = false;
@@ -282,7 +307,7 @@ public abstract class MobileVehicleEntity extends EnergyVehicleEntity implements
         if (this.entityData.get(DECOY_COUNT) < 1 && decoyReloadCoolDown == 0 && this.level() instanceof ServerLevel) {
             this.entityData.set(DECOY_COUNT, this.entityData.get(DECOY_COUNT) + 1);
             this.level().playSound(null, this, ModSounds.DECOY_RELOAD.get(), this.getSoundSource(), 1, 1);
-            decoyReloadCoolDown = 400;
+            decoyReloadCoolDown = 500;
         }
     }
 
@@ -297,7 +322,7 @@ public abstract class MobileVehicleEntity extends EnergyVehicleEntity implements
                     flareDecoyEntity.decoyShoot(this, this.getViewVector(1).yRot((45 + 90 * i) * Mth.DEG_TO_RAD), 0.8f, 8);
                     this.level().addFreshEntity(flareDecoyEntity);
                 }
-                this.level().playSound(null, this, ModSounds.DECOY_FIRE.get(), this.getSoundSource(), 1, 1);
+                this.level().playSound(null, this, ModSounds.DECOY_FIRE.get(), this.getSoundSource(), 2, 1);
                 if (this.getEntityData().get(DECOY_COUNT) == 4) {
                     decoyReloadCoolDown = 300;
                 }
@@ -327,7 +352,7 @@ public abstract class MobileVehicleEntity extends EnergyVehicleEntity implements
     }
 
     // 地形适应测试
-    public void terrainCompat(float w, float l) {
+    public void terrainCompact(float w, float l) {
         if (onGround()) {
             Matrix4f transform = this.getWheelsTransform(1);
 
@@ -345,9 +370,9 @@ public abstract class MobileVehicleEntity extends EnergyVehicleEntity implements
             Vec3 p3 = new Vec3(positionLB.x, positionLB.y, positionLB.z);
             Vec3 p4 = new Vec3(positionRB.x, positionRB.y, positionRB.z);
 
-            if (mainSupportingBlockPos.isPresent()) {
-                BlockPos blockpos = this.mainSupportingBlockPos.get();
-            }
+//            if (mainSupportingBlockPos.isPresent()) {
+//                BlockPos blockpos = this.mainSupportingBlockPos.get();
+//            }
 
             // 确定点位是否在墙里来调整点位高度
             float p1y = (float) this.traceBlockY(p1, 3);
@@ -401,6 +426,53 @@ public abstract class MobileVehicleEntity extends EnergyVehicleEntity implements
         }
     }
 
+    //用于履带的地形适应
+
+    public float[] terrainCompactTrackValue(float w, float l) {
+        Matrix4f transform = this.getWheelsTransform(1);
+
+        // 左前
+        Vector4f positionLF = transformPosition(transform, w / 2, 0, l / 2);
+        // 右前
+        Vector4f positionRF = transformPosition(transform, -w / 2, 0, l / 2);
+        // 左后
+        Vector4f positionLB = transformPosition(transform, w / 2, 0, -l / 2);
+        // 右后
+        Vector4f positionRB = transformPosition(transform, -w / 2, 0, -l / 2);
+
+        Vec3 p1 = new Vec3(positionLF.x, positionLF.y, positionLF.z);
+        Vec3 p2 = new Vec3(positionRF.x, positionRF.y, positionRF.z);
+        Vec3 p3 = new Vec3(positionLB.x, positionLB.y, positionLB.z);
+        Vec3 p4 = new Vec3(positionRB.x, positionRB.y, positionRB.z);
+
+        // 确定点位是否在墙里来调整点位高度
+        float p1y = (float) this.traceBlockY(p1, 3);
+        float p2y = (float) this.traceBlockY(p2, 3);
+        float p3y = (float) this.traceBlockY(p3, 3);
+        float p4y = (float) this.traceBlockY(p4, 3);
+
+        p1 = new Vec3(positionLF.x, p1y, positionLF.z);
+        p2 = new Vec3(positionRF.x, p2y, positionRF.z);
+        p3 = new Vec3(positionLB.x, p3y, positionLB.z);
+        p4 = new Vec3(positionRB.x, p4y, positionRB.z);
+
+        Vec3 v0 = p3.vectorTo(p1);
+        Vec3 v1 = p4.vectorTo(p2);
+        Vec3 v2 = p1.vectorTo(p2);
+        Vec3 v3 = p3.vectorTo(p4);
+
+        double x1 = getXRotFromVector(v0);
+        double x2 = getXRotFromVector(v1);
+
+        double z1 = getXRotFromVector(v2);
+        double z2 = getXRotFromVector(v3);
+
+        float x = Math.clamp(-15f, 15f, Mth.wrapDegrees((float) (-(x1 + x2)) - getXRot()));
+        float z = Math.clamp(-15f, 15f, Mth.wrapDegrees((float) (-(z1 + z2)) - getRoll()));
+
+        return new float[]{x, z};
+    }
+
     public Matrix4f getWheelsTransform(float ticks) {
         Matrix4f transform = new Matrix4f();
         transform.translate((float) Mth.lerp(ticks, xo, getX()), (float) Mth.lerp(ticks, yo, getY()), (float) Mth.lerp(ticks, zo, getZ()));
@@ -412,7 +484,7 @@ public abstract class MobileVehicleEntity extends EnergyVehicleEntity implements
         var res = this.level().clip(new ClipContext(pos, pos.add(0, -maxLength, 0),
                 ClipContext.Block.COLLIDER, ClipContext.Fluid.NONE, this));
 
-        double targetY = 0;
+        double targetY;
 
         BlockState state = level().getBlockState(BlockPos.containing(pos));
         VoxelShape shape = state.getCollisionShape(level(), BlockPos.containing(pos));
@@ -420,6 +492,8 @@ public abstract class MobileVehicleEntity extends EnergyVehicleEntity implements
             targetY = pos.y + shape.max(Direction.Axis.Y);
         } else if (res.getType() == HitResult.Type.BLOCK && this.level().noCollision(new AABB(pos, pos))) {
             targetY = res.getLocation().y;
+        } else {
+            targetY = pos.y - maxLength;
         }
 
         double diffY = targetY - pos.y;
@@ -428,7 +502,7 @@ public abstract class MobileVehicleEntity extends EnergyVehicleEntity implements
 
     public void baseCollideBlock() {
         if (level() instanceof ServerLevel) {
-            AABB aabb = getBoundingBox().inflate(0.05).move(this.getDeltaMovement().scale(0.6));
+            AABB aabb = getBoundingBox().inflate(0.25, 1, 0.25).expandTowards(0, 0.5, 1).move(this.getDeltaMovement().scale(1.2));
             BlockPos.betweenClosedStream(aabb).forEach((pos) -> {
                 BlockState blockstate = this.level().getBlockState(pos);
                 if (blockstate.is(Blocks.LILY_PAD) ||
@@ -442,7 +516,7 @@ public abstract class MobileVehicleEntity extends EnergyVehicleEntity implements
 
     public void collideBlock() {
         if (!VehicleConfig.COLLISION_DESTROY_BLOCKS.get()) return;
-        AABB aabb = getBoundingBox().inflate(0.1, -0.05, 0.1);
+        AABB aabb = getBoundingBox().inflate(0.25, 1, 0.25).expandTowards(0, 0.5, 1).move(this.getDeltaMovement().scale(1.2));
         BlockPos.betweenClosedStream(aabb).forEach((pos) -> {
             BlockState blockstate = this.level().getBlockState(pos);
             if (blockstate.is(ModTags.Blocks.SOFT_COLLISION)) {
@@ -453,7 +527,7 @@ public abstract class MobileVehicleEntity extends EnergyVehicleEntity implements
 
     public void collideHardBlock() {
         if (!VehicleConfig.COLLISION_DESTROY_HARD_BLOCKS.get()) return;
-        AABB aabb = getBoundingBox().inflate(0.25, -0.05, 0.25);
+        AABB aabb = getBoundingBox().inflate(0.25, 1, 0.25).expandTowards(0, 0.5, 1).move(this.getDeltaMovement().scale(1.2));
         BlockPos.betweenClosedStream(aabb).forEach((pos) -> {
             BlockState blockstate = this.level().getBlockState(pos);
             if (blockstate.is(ModTags.Blocks.HARD_COLLISION)) {
@@ -465,7 +539,7 @@ public abstract class MobileVehicleEntity extends EnergyVehicleEntity implements
 
     public void collideBlockBeastly() {
         if (!VehicleConfig.COLLISION_DESTROY_BLOCKS_BEASTLY.get()) return;
-        AABB aabb = getBoundingBox().inflate(0.25, -0.05, 0.25);
+        AABB aabb = getBoundingBox().inflate(0.25, 1, 0.25).expandTowards(0, 0.52, 1).move(this.getDeltaMovement().scale(1.2));
         BlockPos.betweenClosedStream(aabb).forEach((pos) -> {
             BlockState blockstate = this.level().getBlockState(pos);
             float hardness = blockstate.getBlock().defaultDestroyTime();
@@ -506,7 +580,7 @@ public abstract class MobileVehicleEntity extends EnergyVehicleEntity implements
 
             if ((verticalCollision)) {
                 if (this instanceof HelicopterEntity) {
-                    this.hurt(ModDamageTypes.causeVehicleStrikeDamage(this.level().registryAccess(), this, driver == null ? this : driver), (float) (20 * ((lastTickSpeed - 0.3) * (lastTickSpeed - 0.3))));
+                    this.hurt(ModDamageTypes.causeVehicleStrikeDamage(this.level().registryAccess(), this, driver == null ? this : driver), (float) (60 * ((lastTickSpeed - 0.3) * (lastTickSpeed - 0.3))));
                     this.bounceVertical(Direction.getNearest(this.getDeltaMovement().x(), this.getDeltaMovement().y(), this.getDeltaMovement().z()).getOpposite());
                 } else if (Mth.abs((float) lastTickVerticalSpeed) > 0.4) {
                     this.hurt(ModDamageTypes.causeVehicleStrikeDamage(this.level().registryAccess(), this, driver == null ? this : driver), (float) (96 * ((Mth.abs((float) lastTickVerticalSpeed) - 0.4) * (lastTickSpeed - 0.3) * (lastTickSpeed - 0.3))));
@@ -525,7 +599,7 @@ public abstract class MobileVehicleEntity extends EnergyVehicleEntity implements
                 }
                 collisionCoolDown = 4;
                 crash = true;
-                this.entityData.set(POWER, 0.4f * entityData.get(POWER));
+                this.entityData.set(POWER, 0.8f * entityData.get(POWER));
             }
         }
     }
@@ -589,8 +663,7 @@ public abstract class MobileVehicleEntity extends EnergyVehicleEntity implements
             if (!this.canCrushEntities()) return;
             if (velocity.horizontalDistance() < 0.25) return;
             if (isRemoved()) return;
-            var frontBox = getBoundingBox().move(velocity.scale(0.6));
-            var velAdd = velocity.add(0, 0, 0).scale(0.9);
+            var frontBox = getBoundingBox().move(velocity);
 
             var entities = level().getEntities(EntityTypeTest.forClass(Entity.class), frontBox,
                             entity -> entity != this && entity != getFirstPassenger() && entity.getVehicle() == null)
@@ -608,28 +681,48 @@ public abstract class MobileVehicleEntity extends EnergyVehicleEntity implements
                     .toList();
 
             for (var entity : entities) {
-                double entitySize = entity.getBbWidth() * entity.getBbHeight();
-                double thisSize = this.getBbWidth() * this.getBbHeight();
-                double f = Math.min(entitySize / thisSize, 2) * 0.5;
-                double f1 = Math.min(thisSize / entitySize, 4) * 2;
+                double entitySize = entity.getBoundingBox().getSize();
+                double thisSize = this.getBoundingBox().getSize();
+                double f;
+                double f1;
 
-                if (velocity.length() > 0.3 && getBoundingBox().distanceToSqr(entity.getBoundingBox().getCenter()) < 1) {
+                // TODO 给非载具实体也设置质量
+
+                if (entity instanceof VehicleEntity vehicle) {
+                    f = Mth.clamp(vehicle.getMass() / getMass(), 0.25, 4);
+                    f1 = Mth.clamp(getMass() / vehicle.getMass(), 0.25, 4);
+                } else {
+                    f = Mth.clamp(entitySize / thisSize, 0.25, 4);
+                    f1 = Mth.clamp(thisSize / entitySize, 0.25, 4);
+
+                }
+
+                float v = (float) velocity.dot(position().vectorTo(entity.position()));
+                var velAdd = position().vectorTo(entity.position()).normalize().scale(0.1 * v);
+
+                if (Mth.abs(v) > 0.3) {
                     if (!this.level().isClientSide) {
                         this.level().playSound(null, this, ModSounds.VEHICLE_STRIKE.get(), this.getSoundSource(), 1, 1);
                     }
+
+                    if (entity instanceof LivingEntity) {
+                        entity.hurt(ModDamageTypes.causeVehicleStrikeDamage(this.level().registryAccess(), this, this.getFirstPassenger() == null ? this : this.getFirstPassenger()), (float) (f1 * 5 * (Mth.abs(v) - 0.3) * (Mth.abs(v) - 0.3)));
+                    } else {
+                        entity.hurt(ModDamageTypes.causeVehicleStrikeDamage(this.level().registryAccess(), this, this.getFirstPassenger() == null ? this : this.getFirstPassenger()), (float) (f1 * 2 * (Mth.abs(v) - 0.3) * (Mth.abs(v) - 0.3)));
+                    }
+
+                    if (entity instanceof VehicleEntity) {
+                        this.hurt(ModDamageTypes.causeVehicleStrikeDamage(this.level().registryAccess(), entity, entity.getFirstPassenger() == null ? entity : entity.getFirstPassenger()), (float) (f * (Mth.abs(v) - 0.3) * (Mth.abs(v) - 0.3)));
+                    }
+
                     if (!(entity instanceof TargetEntity)) {
-                        this.pushNew(-f * velAdd.x, -f * velAdd.y, -f * velAdd.z);
+                        this.pushNew(-0.3f * f * velAdd.x, -0.3f * f * velAdd.y, -0.3f * f * velAdd.z);
                     }
 
                     if (entity instanceof MobileVehicleEntity mobileVehicle) {
                         mobileVehicle.pushNew(f1 * velAdd.x, f1 * velAdd.y, f1 * velAdd.z);
                     } else {
                         entity.push(f1 * velAdd.x, f1 * velAdd.y, f1 * velAdd.z);
-                    }
-
-                    entity.hurt(ModDamageTypes.causeVehicleStrikeDamage(this.level().registryAccess(), this, this.getFirstPassenger() == null ? this : this.getFirstPassenger()), (float) (thisSize * 20 * ((velocity.length() - 0.3) * (velocity.length() - 0.3))));
-                    if (entities instanceof VehicleEntity) {
-                        this.hurt(ModDamageTypes.causeVehicleStrikeDamage(this.level().registryAccess(), entity, entity.getFirstPassenger() == null ? entity : entity.getFirstPassenger()), (float) (entitySize * 10 * ((velocity.length() - 0.3) * (velocity.length() - 0.3))));
                     }
                 } else {
                     entity.push(0.3 * f1 * velAdd.x, 0.3 * f1 * velAdd.y, 0.3 * f1 * velAdd.z);
@@ -656,6 +749,10 @@ public abstract class MobileVehicleEntity extends EnergyVehicleEntity implements
 
     public SoundEvent getEngineSound() {
         return SoundEvents.EMPTY;
+    }
+
+    public float getEngineSoundVolume() {
+        return (float) Mth.lerp(Mth.clamp(getDeltaMovement().length(), 0F, 0.5F), 0.0F, 0.7F);
     }
 
     public double getVelocity() {
@@ -735,8 +832,68 @@ public abstract class MobileVehicleEntity extends EnergyVehicleEntity implements
         this.recoilShake = pRecoilShake;
     }
 
+    public float getFlap1LRot() {
+        return this.flap1LRot;
+    }
+
+    public void setFlap1L2Rot(float pFlap1L2Rot) {
+        this.flap1L2Rot = pFlap1L2Rot;
+    }
+
+    public float getFlap1R2Rot() {
+        return this.flap1R2Rot;
+    }
+
+    public void setFlap1R2Rot(float pFlap1R2Rot) {
+        this.flap1R2Rot = pFlap1R2Rot;
+    }
+
+    public float getFlap1L2Rot() {
+        return this.flap1L2Rot;
+    }
+
+    public void setFlap1LRot(float pFlap1LRot) {
+        this.flap1LRot = pFlap1LRot;
+    }
+
+    public float getFlap1RRot() {
+        return this.flap1RRot;
+    }
+
+    public void setFlap1RRot(float pFlap1RRot) {
+        this.flap1RRot = pFlap1RRot;
+    }
+
+    public float getFlap2LRot() {
+        return this.flap2LRot;
+    }
+
+    public void setFlap2LRot(float pFlap2LRot) {
+        this.flap2LRot = pFlap2LRot;
+    }
+
+    public float getFlap2RRot() {
+        return this.flap2RRot;
+    }
+
+    public void setFlap2RRot(float pFlap2RRot) {
+        this.flap2RRot = pFlap2RRot;
+    }
+
+    public float getFlap3Rot() {
+        return this.flap3Rot;
+    }
+
+    public void setFlap3Rot(float pFlap3Rot) {
+        this.flap3Rot = pFlap3Rot;
+    }
+
     public boolean hasDecoy() {
         return false;
+    }
+
+    public boolean engineRunning() {
+        return Math.abs(this.entityData.get(POWER)) > 0;
     }
 
     @Override
@@ -747,9 +904,11 @@ public abstract class MobileVehicleEntity extends EnergyVehicleEntity implements
         this.entityData.define(YAW, 0f);
         this.entityData.define(AMMO, 0);
         this.entityData.define(FIRE_ANIM, 0);
-        this.entityData.define(HEAT, 0);
         this.entityData.define(COAX_HEAT, 0);
         this.entityData.define(DECOY_COUNT, 0);
+        this.entityData.define(GEAR_ROT, 0);
+        this.entityData.define(GEAR_UP, false);
+        this.entityData.define(PLANE_BREAK, 0f);
     }
 
     @Override
@@ -757,6 +916,8 @@ public abstract class MobileVehicleEntity extends EnergyVehicleEntity implements
         super.readAdditionalSaveData(compound);
         this.entityData.set(POWER, compound.getFloat("Power"));
         this.entityData.set(DECOY_COUNT, compound.getInt("DecoyCount"));
+        this.entityData.set(GEAR_ROT, compound.getInt("GearRot"));
+        this.entityData.set(GEAR_UP, compound.getBoolean("GearUp"));
     }
 
     @Override
@@ -764,6 +925,12 @@ public abstract class MobileVehicleEntity extends EnergyVehicleEntity implements
         super.addAdditionalSaveData(compound);
         compound.putFloat("Power", this.entityData.get(POWER));
         compound.putInt("DecoyCount", this.entityData.get(DECOY_COUNT));
+        compound.putInt("GearRot", this.entityData.get(GEAR_ROT));
+        compound.putBoolean("GearUp", this.entityData.get(GEAR_UP));
+    }
+
+    public boolean hasTracks() {
+        return false;
     }
 
     public boolean canCrushEntities() {

@@ -34,7 +34,13 @@ side = "BOTH"
 [[dependencies.superbwarfare]]
 modId = "geckolib"
 mandatory = true
-versionRange = "[4.4.4,)"
+versionRange = "[4.4.6,)"
 ordering = "NONE"
 side = "BOTH"
 
+[[dependencies.superbwarfare]]
+modId = "patchouli"
+mandatory = false
+versionRange = "[1.20.1-84,)"
+ordering = "NONE"
+side = "BOTH"

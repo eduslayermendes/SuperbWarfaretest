@@ -3,10 +3,9 @@ package com.atsuishio.superbwarfare.client.model.item;
 import com.atsuishio.superbwarfare.Mod;
 import com.atsuishio.superbwarfare.client.AnimationHelper;
 import com.atsuishio.superbwarfare.client.overlay.CrossHairOverlay;
+import com.atsuishio.superbwarfare.data.gun.GunData;
+import com.atsuishio.superbwarfare.data.gun.value.AttachmentType;
 import com.atsuishio.superbwarfare.event.ClientEventHandler;
-import com.atsuishio.superbwarfare.item.gun.GunItem;
-import com.atsuishio.superbwarfare.item.gun.data.GunData;
-import com.atsuishio.superbwarfare.item.gun.data.value.AttachmentType;
 import com.atsuishio.superbwarfare.item.gun.smg.VectorItem;
 import net.minecraft.client.Minecraft;
 import net.minecraft.resources.ResourceLocation;
@@ -15,11 +14,10 @@ import net.minecraft.world.entity.player.Player;
 import net.minecraft.world.item.ItemStack;
 import software.bernie.geckolib.core.animatable.model.CoreGeoBone;
 import software.bernie.geckolib.core.animation.AnimationState;
-import software.bernie.geckolib.model.GeoModel;
 
 import static com.atsuishio.superbwarfare.event.ClientEventHandler.isProne;
 
-public class VectorItemModel extends GeoModel<VectorItem> {
+public class VectorItemModel extends CustomGunModel<VectorItem> {
 
     public static float fireRotY = 0f;
     public static float fireRotZ = 0f;
@@ -42,28 +40,24 @@ public class VectorItemModel extends GeoModel<VectorItem> {
     }
 
     @Override
-    public void setCustomAnimations(VectorItem animatable, long instanceId, AnimationState animationState) {
+    public void setCustomAnimations(VectorItem animatable, long instanceId, AnimationState<VectorItem> animationState) {
+        Player player = Minecraft.getInstance().player;
+        if (player == null) return;
+        ItemStack stack = player.getMainHandItem();
+        if (shouldCancelRender(stack, animationState)) return;
+
         CoreGeoBone gun = getAnimationProcessor().getBone("bone");
         CoreGeoBone scope = getAnimationProcessor().getBone("Scope1");
-        CoreGeoBone cross1 = getAnimationProcessor().getBone("Cross1");
         CoreGeoBone kmj = getAnimationProcessor().getBone("kuaimanji");
         CoreGeoBone sight1fold = getAnimationProcessor().getBone("SightFold1");
         CoreGeoBone sight2fold = getAnimationProcessor().getBone("SightFold2");
 
-        Player player = Minecraft.getInstance().player;
-        if (player == null) return;
-        ItemStack stack = player.getMainHandItem();
-        if (!(stack.getItem() instanceof GunItem)) return;
+        var data = GunData.from(stack);
 
-        int mode = GunData.from(stack).fireMode.get();
-        if (mode == 0) {
-            kmj.setRotX(-120 * Mth.DEG_TO_RAD);
-        }
-        if (mode == 1) {
-            kmj.setRotX(-60 * Mth.DEG_TO_RAD);
-        }
-        if (mode == 2) {
-            kmj.setRotX(0);
+        switch (data.fireMode.get()) {
+            case SEMI -> kmj.setRotX(-120 * Mth.DEG_TO_RAD);
+            case BURST -> kmj.setRotX(-60 * Mth.DEG_TO_RAD);
+            case AUTO -> kmj.setRotX(0);
         }
 
         float times = 0.6f * (float) Math.min(Minecraft.getInstance().getDeltaFrameTime(), 0.8);
@@ -120,8 +114,6 @@ public class VectorItemModel extends GeoModel<VectorItem> {
 
         CrossHairOverlay.gunRot = shen.getRotZ();
 
-        cross1.setPosY(-0.25f * (float) fpz);
-
         rotXSight = Mth.lerp(1.5f * times, rotXSight, type == 0 ? 0 : 90);
         sight1fold.setRotX(rotXSight * Mth.DEG_TO_RAD);
         sight2fold.setRotX(rotXSight * Mth.DEG_TO_RAD);
@@ -141,7 +133,7 @@ public class VectorItemModel extends GeoModel<VectorItem> {
         float numP = (float) (1 - 0.88 * zt);
 
         AnimationHelper.handleReloadShakeAnimation(stack, main, camera, numR, numP);
-        ClientEventHandler.shake(Mth.RAD_TO_DEG * camera.getRotX(), Mth.RAD_TO_DEG * camera.getRotY(), Mth.RAD_TO_DEG * camera.getRotZ());
+        ClientEventHandler.handleReloadShake(Mth.RAD_TO_DEG * camera.getRotX(), Mth.RAD_TO_DEG * camera.getRotY(), Mth.RAD_TO_DEG * camera.getRotZ());
         AnimationHelper.handleShellsAnimation(getAnimationProcessor(), 1.2f, 0.45f);
     }
 }

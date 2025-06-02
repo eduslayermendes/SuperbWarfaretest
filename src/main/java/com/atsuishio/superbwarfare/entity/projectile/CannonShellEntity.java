@@ -17,6 +17,7 @@ import net.minecraft.network.protocol.Packet;
 import net.minecraft.network.protocol.game.ClientGamePacketListener;
 import net.minecraft.server.level.ServerLevel;
 import net.minecraft.server.level.ServerPlayer;
+import net.minecraft.sounds.SoundEvent;
 import net.minecraft.sounds.SoundSource;
 import net.minecraft.world.entity.Entity;
 import net.minecraft.world.entity.EntityType;
@@ -46,7 +47,8 @@ import software.bernie.geckolib.util.GeckoLibUtil;
 import java.util.HashSet;
 import java.util.Set;
 
-public class CannonShellEntity extends FastThrowableProjectile implements GeoEntity {
+public class CannonShellEntity extends FastThrowableProjectile implements GeoEntity, ExplosiveProjectile {
+
     private final AnimatableInstanceCache cache = GeckoLibUtil.createInstanceCache(this);
     private float damage = 0;
     private float radius = 0;
@@ -277,7 +279,7 @@ public class CannonShellEntity extends FastThrowableProjectile implements GeoEnt
                 vec3.y,
                 vec3.z,
                 radius,
-                ExplosionConfig.EXPLOSION_DESTROY.get() ? Explosion.BlockInteraction.DESTROY : Explosion.BlockInteraction.KEEP).
+                ExplosionConfig.EXPLOSION_DESTROY.get() ? Explosion.BlockInteraction.DESTROY : Explosion.BlockInteraction.KEEP, true).
                 setDamageMultiplier(1).setFireTime(fireTime);
         explosion.explode();
         net.minecraftforge.event.ForgeEventFactory.onExplosionStart(this.level(), explosion);
@@ -305,7 +307,7 @@ public class CannonShellEntity extends FastThrowableProjectile implements GeoEnt
                 result.getLocation().y + 5 * getDeltaMovement().normalize().y,
                 result.getLocation().z + 5 * getDeltaMovement().normalize().z,
                 radius,
-                ExplosionConfig.EXPLOSION_DESTROY.get() ? Explosion.BlockInteraction.DESTROY : Explosion.BlockInteraction.KEEP).
+                ExplosionConfig.EXPLOSION_DESTROY.get() ? Explosion.BlockInteraction.DESTROY : Explosion.BlockInteraction.KEEP, true).
                 setDamageMultiplier(1).setFireTime(fireTime);
         explosion.explode();
         net.minecraftforge.event.ForgeEventFactory.onExplosionStart(this.level(), explosion);
@@ -345,5 +347,30 @@ public class CannonShellEntity extends FastThrowableProjectile implements GeoEnt
             ChunkLoadTool.unloadAllChunks(serverLevel, this, this.loadedChunks);
         }
         super.onRemovedFromWorld();
+    }
+
+    @Override
+    public SoundEvent getSound() {
+        return ModSounds.SHELL_FLY.get();
+    }
+
+    @Override
+    public float getVolume() {
+        return 0.07f;
+    }
+
+    @Override
+    public void setDamage(float damage) {
+        this.damage = damage;
+    }
+
+    @Override
+    public void setExplosionDamage(float damage) {
+        this.explosionDamage = damage;
+    }
+
+    @Override
+    public void setExplosionRadius(float radius) {
+        this.radius = radius;
     }
 }

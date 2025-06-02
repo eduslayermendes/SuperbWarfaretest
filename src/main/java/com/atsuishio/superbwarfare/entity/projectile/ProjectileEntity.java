@@ -2,16 +2,16 @@ package com.atsuishio.superbwarfare.entity.projectile;
 
 import com.atsuishio.superbwarfare.Mod;
 import com.atsuishio.superbwarfare.block.BarbedWireBlock;
-import com.atsuishio.superbwarfare.config.server.MiscConfig;
 import com.atsuishio.superbwarfare.config.server.ProjectileConfig;
-import com.atsuishio.superbwarfare.entity.ICustomKnockback;
+import com.atsuishio.superbwarfare.entity.DPSGeneratorEntity;
 import com.atsuishio.superbwarfare.entity.TargetEntity;
+import com.atsuishio.superbwarfare.entity.mixin.ICustomKnockback;
 import com.atsuishio.superbwarfare.entity.vehicle.base.VehicleEntity;
 import com.atsuishio.superbwarfare.init.*;
+import com.atsuishio.superbwarfare.item.Beast;
 import com.atsuishio.superbwarfare.item.Transcript;
 import com.atsuishio.superbwarfare.network.message.receive.ClientIndicatorMessage;
 import com.atsuishio.superbwarfare.network.message.receive.ClientMotionSyncMessage;
-import com.atsuishio.superbwarfare.network.message.receive.PlayerGunKillMessage;
 import com.atsuishio.superbwarfare.tools.*;
 import net.minecraft.core.BlockPos;
 import net.minecraft.core.Direction;
@@ -46,7 +46,6 @@ import net.minecraft.world.level.ClipContext;
 import net.minecraft.world.level.Level;
 import net.minecraft.world.level.block.*;
 import net.minecraft.world.level.block.state.BlockState;
-import net.minecraft.world.level.gameevent.GameEvent;
 import net.minecraft.world.level.material.FluidState;
 import net.minecraft.world.phys.*;
 import net.minecraft.world.phys.shapes.VoxelShape;
@@ -88,7 +87,7 @@ public class ProjectileEntity extends Projectile implements IEntityAdditionalSpa
     protected int shooterId;
     private float damage = 1f;
     private float headShot = 1f;
-    private float monsterMultiple = 0.0f;
+    private float monsterMultiplier = 0.0f;
     private float legShot = 0.5f;
     private boolean beast = false;
     private boolean zoom = false;
@@ -138,6 +137,8 @@ public class ProjectileEntity extends Projectile implements IEntityAdditionalSpa
             if (entity.equals(this.shooter.getVehicle())) continue;
             if (entity.getVehicle() == this.shooter.getVehicle()) continue;
             if (entity instanceof TargetEntity && entity.getEntityData().get(TargetEntity.DOWN_TIME) > 0) continue;
+            if (entity instanceof DPSGeneratorEntity && entity.getEntityData().get(DPSGeneratorEntity.DOWN_TIME) > 0)
+                continue;
 
             EntityResult result = this.getHitResult(entity, startVec, endVec);
             if (result == null) continue;
@@ -275,13 +276,14 @@ public class ProjectileEntity extends Projectile implements IEntityAdditionalSpa
                 if (!this.beast) {
                     this.bypassArmorRate -= 0.2F;
                     if (this.bypassArmorRate < 0.8F) {
-                        if (result != null && !(((EntityHitResult) result).getEntity() instanceof TargetEntity target && target.getEntityData().get(TargetEntity.DOWN_TIME) > 0)) {
+                        if (result != null && !(((EntityHitResult) result).getEntity() instanceof TargetEntity target && target.getEntityData().get(TargetEntity.DOWN_TIME) > 0)
+                                && !(((EntityHitResult) result).getEntity() instanceof DPSGeneratorEntity dpsGeneratorEntity && dpsGeneratorEntity.getEntityData().get(DPSGeneratorEntity.DOWN_TIME) > 0)) {
                             break;
                         }
                     }
                 }
             }
-            if (entityResults.isEmpty() && result != null) {
+            if (entityResults.isEmpty()) {
                 this.onHit(result);
             }
 
@@ -320,7 +322,7 @@ public class ProjectileEntity extends Projectile implements IEntityAdditionalSpa
     protected void readAdditionalSaveData(CompoundTag tag) {
         this.damage = tag.getFloat("Damage");
         this.headShot = tag.getFloat("HeadShot");
-        this.monsterMultiple = tag.getFloat("MonsterMultiple");
+        this.monsterMultiplier = tag.getFloat("MonsterMultiplier");
         this.legShot = tag.getFloat("LegShot");
         this.bypassArmorRate = tag.getFloat("BypassArmorRate");
         this.undeadMultiple = tag.getFloat("UndeadMultiple");
@@ -338,7 +340,7 @@ public class ProjectileEntity extends Projectile implements IEntityAdditionalSpa
     protected void addAdditionalSaveData(CompoundTag tag) {
         tag.putFloat("Damage", this.damage);
         tag.putFloat("HeadShot", this.headShot);
-        tag.putFloat("MonsterMultiple", this.monsterMultiple);
+        tag.putFloat("MonsterMultiplier", this.monsterMultiplier);
         tag.putFloat("LegShot", this.legShot);
         tag.putFloat("BypassArmorRate", this.bypassArmorRate);
         tag.putFloat("UndeadMultiple", this.undeadMultiple);
@@ -384,7 +386,7 @@ public class ProjectileEntity extends Projectile implements IEntityAdditionalSpa
 
             this.onHitBlock(hitVec);
             if (heLevel > 0) {
-                explosionBulletBlock(this, this.damage, heLevel, monsterMultiple + 1, hitVec);
+                explosionBulletBlock(this, this.damage, heLevel, monsterMultiplier + 1, hitVec);
             }
             if (fireLevel > 0 && this.level() instanceof ServerLevel serverLevel) {
                 ParticleTool.sendParticle(serverLevel, ParticleTypes.LAVA, hitVec.x, hitVec.y, hitVec.z,
@@ -485,7 +487,7 @@ public class ProjectileEntity extends Projectile implements IEntityAdditionalSpa
     protected void onHitEntity(Entity entity, boolean headshot, boolean legShot) {
         if (this.shooter == null) return;
 
-        float mMultiple = 1 + this.monsterMultiple;
+        float mMultiple = 1 + this.monsterMultiplier;
 
         if (entity == null) return;
 
@@ -493,39 +495,12 @@ public class ProjectileEntity extends Projectile implements IEntityAdditionalSpa
             entity = part.getParent();
         }
 
+        if (entity instanceof LivingEntity living) {
+            living.level().playSound(null, living.getOnPos(), ModSounds.MELEE_HIT.get(), SoundSource.PLAYERS, 1, (float) ((2 * org.joml.Math.random() - 1) * 0.1f + 1.0f));
+        }
+
         if (beast && entity instanceof LivingEntity living) {
-            if (living.isDeadOrDying()) return;
-            if (living instanceof TargetEntity) return;
-
-            if (this.shooter instanceof ServerPlayer player) {
-                Mod.PACKET_HANDLER.send(PacketDistributor.PLAYER.with(() -> player), new ClientIndicatorMessage(0, 5));
-                var holder = Holder.direct(ModSounds.INDICATION.get());
-                player.connection.send(new ClientboundSoundPacket(holder, SoundSource.PLAYERS, player.getX(), player.getY(), player.getZ(), 1f, 1f, player.level().random.nextLong()));
-                ((ServerLevel) this.level()).sendParticles(ParticleTypes.DAMAGE_INDICATOR, living.getX(), living.getY() + .5, living.getZ(), 1000, .4, .7, .4, 0);
-
-                if (MiscConfig.SEND_KILL_FEEDBACK.get()) {
-                    Mod.PACKET_HANDLER.send(PacketDistributor.ALL.noArg(), new PlayerGunKillMessage(player.getId(), living.getId(), false, ModDamageTypes.BEAST));
-                }
-            }
-
-            if (living instanceof ServerPlayer victim) {
-                living.setHealth(0);
-                living.level().players().forEach(
-                        p -> p.sendSystemMessage(
-                                Component.translatable("death.attack.beast_gun",
-                                        victim.getDisplayName(),
-                                        shooter == null ? "" : shooter.getDisplayName()
-                                )
-                        )
-                );
-            } else {
-                living.setHealth(0);
-                living.level().broadcastEntityEvent(living, (byte) 60);
-                living.remove(RemovalReason.KILLED);
-                living.gameEvent(GameEvent.ENTITY_DIE);
-            }
-
-            level().playSound(living, new BlockPos((int) living.getX(), (int) living.getY(), (int) living.getZ()), ModSounds.OUCH.get(), SoundSource.PLAYERS, 2.0F, 1.0F);
+            Beast.beastKill(this.shooter, living);
             return;
         }
 
@@ -855,8 +830,8 @@ public class ProjectileEntity extends Projectile implements IEntityAdditionalSpa
         return this;
     }
 
-    public ProjectileEntity monsterMultiple(float monsterMultiple) {
-        this.monsterMultiple = monsterMultiple;
+    public ProjectileEntity setMonsterMultiplier(float monsterMultiplier) {
+        this.monsterMultiplier = monsterMultiplier;
         return this;
     }
 

@@ -1,7 +1,7 @@
 package com.atsuishio.superbwarfare.entity.vehicle.base;
 
 import com.atsuishio.superbwarfare.Mod;
-import com.atsuishio.superbwarfare.config.server.VehicleConfig;
+import com.atsuishio.superbwarfare.data.vehicle.VehicleData;
 import com.atsuishio.superbwarfare.entity.vehicle.DroneEntity;
 import com.atsuishio.superbwarfare.entity.vehicle.damage.DamageModifier;
 import com.atsuishio.superbwarfare.entity.vehicle.weapon.VehicleWeapon;
@@ -16,6 +16,7 @@ import com.google.common.collect.Lists;
 import com.mojang.blaze3d.platform.GlStateManager;
 import com.mojang.blaze3d.systems.RenderSystem;
 import com.mojang.math.Axis;
+import it.unimi.dsi.fastutil.Pair;
 import it.unimi.dsi.fastutil.ints.IntList;
 import net.minecraft.client.gui.Font;
 import net.minecraft.client.gui.GuiGraphics;
@@ -25,6 +26,8 @@ import net.minecraft.core.BlockPos;
 import net.minecraft.core.Holder;
 import net.minecraft.core.particles.ParticleTypes;
 import net.minecraft.nbt.CompoundTag;
+import net.minecraft.network.protocol.Packet;
+import net.minecraft.network.protocol.game.ClientGamePacketListener;
 import net.minecraft.network.protocol.game.ClientboundSetPassengersPacket;
 import net.minecraft.network.protocol.game.ClientboundSoundPacket;
 import net.minecraft.network.syncher.EntityDataAccessor;
@@ -40,26 +43,30 @@ import net.minecraft.world.InteractionHand;
 import net.minecraft.world.InteractionResult;
 import net.minecraft.world.damagesource.DamageSource;
 import net.minecraft.world.damagesource.DamageTypes;
-import net.minecraft.world.entity.*;
+import net.minecraft.world.entity.Entity;
+import net.minecraft.world.entity.EntityType;
+import net.minecraft.world.entity.LivingEntity;
+import net.minecraft.world.entity.Pose;
 import net.minecraft.world.entity.player.Player;
 import net.minecraft.world.entity.projectile.AbstractArrow;
-import net.minecraft.world.entity.projectile.ThrownPotion;
 import net.minecraft.world.entity.vehicle.DismountHelper;
 import net.minecraft.world.item.ItemStack;
-import net.minecraft.world.item.Items;
 import net.minecraft.world.level.Level;
 import net.minecraft.world.level.gameevent.GameEvent;
+import net.minecraft.world.phys.Vec2;
 import net.minecraft.world.phys.Vec3;
 import net.minecraftforge.api.distmarker.Dist;
 import net.minecraftforge.api.distmarker.OnlyIn;
 import net.minecraftforge.common.util.FakePlayer;
 import net.minecraftforge.fluids.FluidType;
+import net.minecraftforge.network.NetworkHooks;
 import net.minecraftforge.network.PacketDistributor;
 import net.minecraftforge.registries.ForgeRegistries;
 import org.jetbrains.annotations.NotNull;
 import org.jetbrains.annotations.Nullable;
 import org.joml.Math;
 import org.joml.Matrix4f;
+import org.joml.Quaternionf;
 import org.joml.Vector4f;
 
 import java.util.ArrayList;
@@ -76,7 +83,10 @@ public abstract class VehicleEntity extends Entity {
     public static final EntityDataAccessor<String> LAST_ATTACKER_UUID = SynchedEntityData.defineId(VehicleEntity.class, EntityDataSerializers.STRING);
     public static final EntityDataAccessor<String> LAST_DRIVER_UUID = SynchedEntityData.defineId(VehicleEntity.class, EntityDataSerializers.STRING);
     public static final EntityDataAccessor<Float> DELTA_ROT = SynchedEntityData.defineId(VehicleEntity.class, EntityDataSerializers.FLOAT);
+    public static final EntityDataAccessor<Float> MOUSE_SPEED_X = SynchedEntityData.defineId(VehicleEntity.class, EntityDataSerializers.FLOAT);
+    public static final EntityDataAccessor<Float> MOUSE_SPEED_Y = SynchedEntityData.defineId(VehicleEntity.class, EntityDataSerializers.FLOAT);
     public static final EntityDataAccessor<IntList> SELECTED_WEAPON = SynchedEntityData.defineId(VehicleEntity.class, ModSerializers.INT_LIST_SERIALIZER.get());
+    public static final EntityDataAccessor<Integer> HEAT = SynchedEntityData.defineId(VehicleEntity.class, EntityDataSerializers.INT);
 
     public VehicleWeapon[][] availableWeapons;
 
@@ -102,6 +112,14 @@ public abstract class VehicleEntity extends Entity {
     public float gunXRot;
     public float gunYRotO;
     public float gunXRotO;
+
+    public boolean cannotFire;
+
+
+    public void mouseInput(double x, double y) {
+        entityData.set(MOUSE_SPEED_X, (float) x);
+        entityData.set(MOUSE_SPEED_Y, (float) y);
+    }
 
     // 自定义骑乘
     private final List<Entity> orderedPassengers = generatePassengersList();
@@ -166,6 +184,16 @@ public abstract class VehicleEntity extends Entity {
 
         pPassenger.boardingCooldown = 60;
         this.gameEvent(GameEvent.ENTITY_DISMOUNT, pPassenger);
+    }
+
+    public VehicleData data() {
+        return VehicleData.from(this);
+    }
+
+
+    @Override
+    public float getStepHeight() {
+        return data().upStep();
     }
 
     @Nullable
@@ -264,6 +292,9 @@ public abstract class VehicleEntity extends Entity {
         this.entityData.define(LAST_ATTACKER_UUID, "undefined");
         this.entityData.define(LAST_DRIVER_UUID, "undefined");
         this.entityData.define(DELTA_ROT, 0f);
+        this.entityData.define(MOUSE_SPEED_X, 0f);
+        this.entityData.define(MOUSE_SPEED_Y, 0f);
+        this.entityData.define(HEAT, 0);
 
         if (this instanceof WeaponVehicleEntity weaponVehicle && weaponVehicle.getAllWeapons().length > 0) {
             this.entityData.define(SELECTED_WEAPON, IntList.of(initSelectedWeaponArray(weaponVehicle)));
@@ -314,6 +345,7 @@ public abstract class VehicleEntity extends Entity {
     @Override
     public @NotNull InteractionResult interact(Player player, @NotNull InteractionHand hand) {
         if (player.getVehicle() == this) return InteractionResult.PASS;
+        var data = data();
 
         ItemStack stack = player.getMainHandItem();
         if (player.isShiftKeyDown() && stack.is(ModItems.CROWBAR.get()) && this.getPassengers().isEmpty()) {
@@ -324,8 +356,11 @@ public abstract class VehicleEntity extends Entity {
             this.remove(RemovalReason.DISCARDED);
             this.discard();
             return InteractionResult.SUCCESS;
-        } else if (this.getHealth() < this.getMaxHealth() && stack.is(Items.IRON_INGOT)) {
-            this.heal(Math.min(50, this.getMaxHealth()));
+        } else if (this.getHealth() < this.getMaxHealth()
+                && data.canRepairManually()
+                && data.isRepairMaterial(stack)
+        ) {
+            this.heal(Math.min(data.repairMaterialHealAmount(), this.getMaxHealth()));
             stack.shrink(1);
             if (!this.level().isClientSide) {
                 this.level().playSound(null, this, SoundEvents.IRON_GOLEM_REPAIR, this.getSoundSource(), 0.5f, 1);
@@ -383,7 +418,7 @@ public abstract class VehicleEntity extends Entity {
         if (source.is(DamageTypes.CACTUS) || source.is(DamageTypes.SWEET_BERRY_BUSH) || source.is(DamageTypes.IN_WALL))
             return false;
         // 计算减伤后的伤害
-        float computedAmount = damageModifier.compute(source, amount);
+        float computedAmount = getDamageModifier().compute(source, amount);
         this.crash = source.is(ModDamageTypes.VEHICLE_STRIKE);
 
         if (source.getEntity() != null) {
@@ -424,22 +459,13 @@ public abstract class VehicleEntity extends Entity {
         return true;
     }
 
-    protected final DamageModifier damageModifier = this.getDamageModifier();
-
     /**
      * 控制载具伤害免疫
      *
      * @return DamageModifier
      */
     public DamageModifier getDamageModifier() {
-        return new DamageModifier()
-                .immuneTo(source -> source.getDirectEntity() instanceof ThrownPotion || source.getDirectEntity() instanceof AreaEffectCloud)
-                .immuneTo(DamageTypes.FALL)
-                .immuneTo(DamageTypes.DROWN)
-                .immuneTo(DamageTypes.DRAGON_BREATH)
-                .immuneTo(DamageTypes.WITHER)
-                .immuneTo(DamageTypes.WITHER_SKULL)
-                .reduce(5, ModDamageTypes.VEHICLE_STRIKE);
+        return data().damageModifier();
     }
 
     public float getSourceAngle(DamageSource source, float multiply) {
@@ -449,8 +475,9 @@ public abstract class VehicleEntity extends Entity {
         }
 
         if (attacker != null) {
+            Vec3 toVec = new Vec3(getX(), getY() + getBbHeight() / 2, getZ()).vectorTo(attacker.position()).normalize();
             float angle = (float) java.lang.Math.abs(VectorTool.calculateAngle(this.position().vectorTo(attacker.position()), this.getViewVector(1)));
-            return java.lang.Math.max(1f + multiply * ((angle - 90) / 90), 0.5f);
+            return (float) java.lang.Math.max(1f - multiply * toVec.dot(getViewVector(1)), 0.5f);
         }
 
         return 1;
@@ -492,7 +519,7 @@ public abstract class VehicleEntity extends Entity {
     }
 
     public float getMaxHealth() {
-        return 50;
+        return data().maxHealth();
     }
 
     @Override
@@ -536,14 +563,14 @@ public abstract class VehicleEntity extends Entity {
      * 呼吸回血冷却时长(单位:tick)，设为小于0的值以禁用呼吸回血
      */
     public int maxRepairCoolDown() {
-        return VehicleConfig.REPAIR_COOLDOWN.get();
+        return data().repairCooldown();
     }
 
     /**
      * 呼吸回血回血量
      */
     public float repairAmount() {
-        return VehicleConfig.REPAIR_AMOUNT.get().floatValue();
+        return data().repairAmount();
     }
 
     @Override
@@ -556,6 +583,19 @@ public abstract class VehicleEntity extends Entity {
             repairCoolDown--;
         }
 
+        if (this.entityData.get(HEAT) > 0) {
+            this.entityData.set(HEAT, this.entityData.get(HEAT) - 1);
+        }
+
+        if (this.entityData.get(HEAT) < 40) {
+            cannotFire = false;
+        }
+
+        if (this.entityData.get(HEAT) > 100 && !cannotFire) {
+            cannotFire = true;
+            this.level().playSound(null, this.getOnPos(), ModSounds.MINIGUN_OVERHEAT.get(), SoundSource.PLAYERS, 1, 1);
+        }
+
         this.prevRoll = this.getRoll();
 
         float delta = Math.abs(getYRot() - yRotO);
@@ -566,6 +606,16 @@ public abstract class VehicleEntity extends Entity {
         while (getYRot() <= -180F) {
             setYRot(getYRot() + 360F);
             yRotO = delta + getYRot();
+        }
+
+        float deltaX = Math.abs(getXRot() - xRotO);
+        while (getXRot() > 180F) {
+            setXRot(getXRot() - 360F);
+            xRotO = getXRot() - deltaX;
+        }
+        while (getXRot() <= -180F) {
+            setXRot(getXRot() + 360F);
+            xRotO = deltaX + getXRot();
         }
 
         float deltaZ = Math.abs(getRoll() - prevRoll);
@@ -588,9 +638,10 @@ public abstract class VehicleEntity extends Entity {
 
         Entity attacker = EntityFindUtil.findEntity(this.level(), this.entityData.get(LAST_ATTACKER_UUID));
 
-        if (this.getHealth() <= 0.1 * this.getMaxHealth()) {
+        var data = data();
+        if (this.getHealth() <= data.selfHurtPercent() * this.getMaxHealth()) {
             // 血量过低时自动扣血
-            this.onHurt(0.1f, attacker, false);
+            this.onHurt(data.selfHurtAmount(), attacker, false);
         } else {
             // 呼吸回血
             if (repairCoolDown == 0) {
@@ -652,7 +703,7 @@ public abstract class VehicleEntity extends Entity {
         }
     }
 
-    private void playLowHealthParticle(ServerLevel serverLevel) {
+    public void playLowHealthParticle(ServerLevel serverLevel) {
         ParticleTool.sendParticle(serverLevel, ParticleTypes.LARGE_SMOKE, this.getX(), this.getY() + 0.7f * getBbHeight(), this.getZ(), 1, 0.35 * this.getBbWidth(), 0.15 * this.getBbHeight(), 0.35 * this.getBbWidth(), 0.01, true);
         ParticleTool.sendParticle(serverLevel, ParticleTypes.CAMPFIRE_COSY_SMOKE, this.getX(), this.getY() + 0.7f * getBbHeight(), this.getZ(), 1, 0.35 * this.getBbWidth(), 0.15 * this.getBbHeight(), 0.35 * this.getBbWidth(), 0.01, true);
     }
@@ -698,6 +749,7 @@ public abstract class VehicleEntity extends Entity {
     }
 
     public void destroy() {
+        this.discard();
     }
 
     protected Entity getAttacker() {
@@ -846,7 +898,7 @@ public abstract class VehicleEntity extends Entity {
     }
 
     public boolean allowFreeCam() {
-        return false;
+        return data().allowFreeCam();
     }
 
     // 本方法留空
@@ -950,6 +1002,44 @@ public abstract class VehicleEntity extends Entity {
         return getEyePosition();
     }
 
+    public double getMouseSensitivity() {
+        return 0.1;
+    }
+
+    public double getMouseSpeedX() {
+        return 0.4;
+    }
+
+    public double getMouseSpeedY() {
+        return 0.4;
+    }
+
+    @Override
+    public @NotNull Packet<ClientGamePacketListener> getAddEntityPacket() {
+        return NetworkHooks.getEntitySpawningPacket(this);
+    }
+
+    public float getMass() {
+        return data().mass();
+    }
+
+    /**
+     * 玩家在载具上的灵敏度调整
+     *
+     * @param original   原始灵敏度
+     * @param zoom       是否在载具上瞄准
+     * @param seatIndex  玩家座位
+     * @param isOnGround 载具是否在地面
+     * @return 调整后的灵敏度
+     */
+    public double getSensitivity(double original, boolean zoom, int seatIndex, boolean isOnGround) {
+        return original;
+    }
+
+    /**
+     * 渲染载具的第一人称UI
+     * 务必标记 @OnlyIn(Dist.CLIENT) !
+     */
     @OnlyIn(Dist.CLIENT)
     public void renderFirstPersonOverlay(GuiGraphics guiGraphics, Font font, Player player, int screenWidth, int screenHeight, float scale) {
         if (!(this instanceof WeaponVehicleEntity weaponVehicle)) return;
@@ -979,7 +1069,53 @@ public abstract class VehicleEntity extends Entity {
         preciseBlit(guiGraphics, texture, centerW, centerH, 0, 0, scaledMinWH, scaledMinWH, scaledMinWH, scaledMinWH);
     }
 
+    /**
+     * 渲染载具的第三人称UI
+     * 务必标记 @OnlyIn(Dist.CLIENT) !
+     */
     @OnlyIn(Dist.CLIENT)
     public void renderThirdPersonOverlay(GuiGraphics guiGraphics, Font font, Player player, int screenWidth, int screenHeight, float scale) {
+    }
+
+    /**
+     * 获取视角旋转
+     *
+     * @param zoom          是否在载具上瞄准
+     * @param isFirstPerson 是否是第一人称视角
+     */
+    @OnlyIn(Dist.CLIENT)
+    @Nullable
+    public Vec2 getCameraRotation(float partialTicks, Player player, boolean zoom, boolean isFirstPerson) {
+        return null;
+    }
+
+    /**
+     * 获取视角位置
+     *
+     * @param zoom          是否在载具上瞄准
+     * @param isFirstPerson 是否是第一人称视角
+     */
+    @OnlyIn(Dist.CLIENT)
+    public Vec3 getCameraPosition(float partialTicks, Player player, boolean zoom, boolean isFirstPerson) {
+        return null;
+    }
+
+    /**
+     * 是否使用载具固定视角
+     */
+    @OnlyIn(Dist.CLIENT)
+    public boolean useFixedCameraPos(Entity entity) {
+        return false;
+    }
+
+    /**
+     * 获取载具上玩家的旋转
+     *
+     * @return X轴旋转，Z轴旋转
+     */
+    @OnlyIn(Dist.CLIENT)
+    @Nullable
+    public Pair<Quaternionf, Quaternionf> getPassengerRotation(Entity entity, float tickDelta) {
+        return null;
     }
 }
