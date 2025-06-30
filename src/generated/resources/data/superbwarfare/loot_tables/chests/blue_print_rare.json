@@ -91,7 +91,12 @@
         },
         {
           "type": "minecraft:item",
-          "name": "superbwarfare:m2hb_blueprint",
+          "name": "superbwarfare:m_2_hb_blueprint",
+          "weight": 30
+        },
+        {
+          "type": "minecraft:item",
+          "name": "superbwarfare:hunting_rifle_blueprint",
           "weight": 30
         },
         {
@@ -101,7 +106,7 @@
         },
         {
           "type": "minecraft:item",
-          "name": "superbwarfare:hunting_rifle_blueprint",
+          "name": "superbwarfare:sentinel_blueprint",
           "weight": 10
         },
         {
@@ -162,11 +167,6 @@
         {
           "type": "minecraft:item",
           "name": "superbwarfare:minigun_blueprint",
-          "weight": 3
-        },
-        {
-          "type": "minecraft:item",
-          "name": "superbwarfare:sentinel_blueprint",
           "weight": 3
         },
         {

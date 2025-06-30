@@ -24,6 +24,8 @@ public class CustomGunRenderer<T extends GunItem & GeoAnimatable> extends GeoIte
 
     public static final float SCALE_RECIPROCAL = 1.0f / 16.0f;
 
+//    public static final int LOD_DISTANCE = 100;
+
     protected T animatable;
     protected boolean renderArms = false;
     protected MultiBufferSource currentBuffer;
@@ -47,7 +49,7 @@ public class CustomGunRenderer<T extends GunItem & GeoAnimatable> extends GeoIte
 
     @Override
     public RenderType getRenderType(T animatable, ResourceLocation texture, MultiBufferSource bufferSource, float partialTick) {
-        return RenderType.entityTranslucent(getTextureLocation(animatable));
+        return RenderType.entityTranslucent(texture);
     }
 
     @Override
@@ -64,6 +66,44 @@ public class CustomGunRenderer<T extends GunItem & GeoAnimatable> extends GeoIte
         return geoModel.getTextureResource(animatable);
     }
 
+//    public ResourceLocation getTextureLocation(T animatable, PoseStack poseStack) {
+//        var geoModel = getGeoModel();
+//
+//        if (renderPerspective != ItemDisplayContext.FIRST_PERSON_RIGHT_HAND
+//                && DisplayConfig.ENABLE_GUN_LOD.get()
+//                && geoModel instanceof CustomGunModel<T> gunModel
+//        ) {
+//            var player = Minecraft.getInstance().player;
+//            if (player != null) {
+//                Vec3 pos = new Vec3(poseStack.last().pose().m30(), poseStack.last().pose().m31(), poseStack.last().pose().m32());
+//                if (pos.lengthSqr() >= LOD_DISTANCE) {
+//                    return gunModel.getLODTextureResource(animatable);
+//                } else {
+//                    return geoModel.getTextureResource(animatable);
+//                }
+//            }
+//            return gunModel.getLODTextureResource(animatable);
+//        }
+//        return geoModel.getTextureResource(animatable);
+//    }
+
+//    @Override
+//    public void renderByItem(ItemStack stack, ItemDisplayContext transformType, PoseStack poseStack, MultiBufferSource bufferSource, int packedLight, int packedOverlay) {
+//        this.animatable = (T) stack.getItem();
+//        this.currentItemStack = stack;
+//        this.renderPerspective = transformType;
+//
+//        if (transformType == ItemDisplayContext.GUI) {
+//            renderInGui(transformType, poseStack, bufferSource, packedLight, packedOverlay);
+//        } else {
+//            RenderType renderType = getRenderType(this.animatable, getTextureLocation(this.animatable, poseStack), bufferSource, Minecraft.getInstance().getFrameTime());
+//            VertexConsumer buffer = ItemRenderer.getFoilBufferDirect(bufferSource, renderType, false, this.currentItemStack != null && this.currentItemStack.hasFoil());
+//
+//            defaultRender(poseStack, this.animatable, bufferSource, renderType, buffer,
+//                    0, Minecraft.getInstance().getFrameTime(), packedLight);
+//        }
+//    }
+
     @Override
     public void defaultRender(PoseStack poseStack, T animatable, MultiBufferSource bufferSource, @Nullable RenderType renderType, @Nullable VertexConsumer buffer, float yaw, float partialTick, int packedLight) {
         poseStack.pushPose();
@@ -75,13 +115,25 @@ public class CustomGunRenderer<T extends GunItem & GeoAnimatable> extends GeoIte
         float alpha = renderColor.getAlphaFloat();
         int packedOverlay = getPackedOverlay(animatable, 0, partialTick);
 
+//        var player = Minecraft.getInstance().player;
+
         ResourceLocation modelLocation;
         var geoModel = getGeoModel();
         if (renderPerspective != ItemDisplayContext.FIRST_PERSON_RIGHT_HAND
                 && DisplayConfig.ENABLE_GUN_LOD.get()
                 && geoModel instanceof CustomGunModel<T> gunModel
         ) {
+//            if (player != null) {
+//                Vec3 pos = new Vec3(poseStack.last().pose().m30(), poseStack.last().pose().m31(), poseStack.last().pose().m32());
+//                if (pos.lengthSqr() >= LOD_DISTANCE) {
+//                    modelLocation = gunModel.getLODModelResource(animatable);
+//                } else {
+            // TODO 这个地方有问题，如果是在这里使用了高模，会导致custom animation无法分离
+//                    modelLocation = geoModel.getModelResource(animatable);
+//                }
+//            } else {
             modelLocation = gunModel.getLODModelResource(animatable);
+//            }
         } else {
             modelLocation = geoModel.getModelResource(animatable);
         }

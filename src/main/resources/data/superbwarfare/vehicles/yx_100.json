@@ -30,6 +30,11 @@
       "Source": "minecraft:player_attack"
     },
     {
+      "Type": "Multiply",
+      "Value": 3,
+      "Source": "@#superbwarfare:aerial_bomb"
+    },
+    {
       "Type": "Immunity",
       "Source": "#superbwarfare:projectile"
     },
@@ -101,6 +106,11 @@
       "Type": "Multiply",
       "Value": 2,
       "Source": "@superbwarfare:mortar_shell"
+    },
+    {
+      "Type": "Multiply",
+      "Value": 2.5,
+      "Source": "@superbwarfare:tm_62"
     },
     {
       "Type": "Reduce",

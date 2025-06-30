@@ -71,8 +71,13 @@
     },
     {
       "Type": "Multiply",
-      "Value": 1.5,
+      "Value": 1.35,
       "Source": "superbwarfare:cannon_fire"
+    },
+    {
+      "Type": "Multiply",
+      "Value": 2,
+      "Source": "@#superbwarfare:aerial_bomb"
     },
     {
       "Type": "Multiply",

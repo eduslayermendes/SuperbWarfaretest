@@ -3,10 +3,8 @@ package com.atsuishio.superbwarfare.entity.projectile;
 import com.atsuishio.superbwarfare.Mod;
 import com.atsuishio.superbwarfare.config.server.ExplosionConfig;
 import com.atsuishio.superbwarfare.entity.vehicle.base.VehicleEntity;
-import com.atsuishio.superbwarfare.init.ModDamageTypes;
-import com.atsuishio.superbwarfare.init.ModEntities;
-import com.atsuishio.superbwarfare.init.ModItems;
-import com.atsuishio.superbwarfare.init.ModSounds;
+import com.atsuishio.superbwarfare.entity.vehicle.damage.DamageModifier;
+import com.atsuishio.superbwarfare.init.*;
 import com.atsuishio.superbwarfare.network.message.receive.ClientIndicatorMessage;
 import com.atsuishio.superbwarfare.tools.*;
 import net.minecraft.core.BlockPos;
@@ -24,25 +22,22 @@ import net.minecraft.sounds.SoundEvents;
 import net.minecraft.sounds.SoundSource;
 import net.minecraft.util.Mth;
 import net.minecraft.world.damagesource.DamageSource;
-import net.minecraft.world.damagesource.DamageTypes;
-import net.minecraft.world.entity.AreaEffectCloud;
 import net.minecraft.world.entity.Entity;
 import net.minecraft.world.entity.EntityType;
 import net.minecraft.world.entity.LivingEntity;
 import net.minecraft.world.entity.animal.Pig;
 import net.minecraft.world.entity.boss.enderdragon.EnderDragon;
-import net.minecraft.world.entity.projectile.ThrownPotion;
 import net.minecraft.world.item.Item;
 import net.minecraft.world.level.Explosion;
 import net.minecraft.world.level.Level;
-import net.minecraft.world.level.block.Block;
 import net.minecraft.world.phys.BlockHitResult;
 import net.minecraft.world.phys.EntityHitResult;
-import net.minecraft.world.phys.HitResult;
 import net.minecraft.world.phys.Vec3;
+import net.minecraftforge.event.ForgeEventFactory;
 import net.minecraftforge.network.NetworkHooks;
 import net.minecraftforge.network.PacketDistributor;
 import net.minecraftforge.network.PlayMessages;
+import org.jetbrains.annotations.NotNull;
 import org.joml.Math;
 import software.bernie.geckolib.animatable.GeoEntity;
 import software.bernie.geckolib.core.animatable.instance.AnimatableInstanceCache;
@@ -55,7 +50,7 @@ import software.bernie.geckolib.util.GeckoLibUtil;
 
 import java.util.List;
 
-public class Agm65Entity extends FastThrowableProjectile implements GeoEntity, DestroyableProjectileEntity, ExplosiveProjectile {
+public class Agm65Entity extends FastThrowableProjectile implements GeoEntity, ExplosiveProjectile {
 
     public static final EntityDataAccessor<Float> HEALTH = SynchedEntityData.defineId(Agm65Entity.class, EntityDataSerializers.FLOAT);
     public static final EntityDataAccessor<String> TARGET_UUID = SynchedEntityData.defineId(Agm65Entity.class, EntityDataSerializers.STRING);
@@ -65,16 +60,17 @@ public class Agm65Entity extends FastThrowableProjectile implements GeoEntity, D
     private float explosionDamage = ExplosionConfig.AGM_65_EXPLOSION_DAMAGE.get();
     private float explosionRadius = ExplosionConfig.AGM_65_EXPLOSION_RADIUS.get().floatValue();
     private boolean distracted = false;
-    private int durability = 40;
-    private boolean firstHit = true;
+    private int durability;
 
     public Agm65Entity(EntityType<? extends Agm65Entity> type, Level world) {
         super(type, world);
         this.noCulling = true;
+        this.durability = 25;
     }
 
     public Agm65Entity(LivingEntity entity, Level level) {
         super(ModEntities.AGM_65.get(), entity, level);
+        this.durability = 25;
     }
 
     public void setTargetUuid(String uuid) {
@@ -86,26 +82,16 @@ public class Agm65Entity extends FastThrowableProjectile implements GeoEntity, D
     }
 
     @Override
-    protected Item getDefaultItem() {
+    protected @NotNull Item getDefaultItem() {
         return ModItems.AGM.get();
     }
 
+
+    private static final DamageModifier DAMAGE_MODIFIER = DamageModifier.createDefaultModifier();
+
     @Override
-    public boolean hurt(DamageSource source, float amount) {
-        if (source.getDirectEntity() instanceof ThrownPotion || source.getDirectEntity() instanceof AreaEffectCloud)
-            return false;
-        if (source.is(DamageTypes.FALL))
-            return false;
-        if (source.is(DamageTypes.CACTUS))
-            return false;
-        if (source.is(DamageTypes.DROWN))
-            return false;
-        if (source.is(DamageTypes.DRAGON_BREATH))
-            return false;
-        if (source.is(DamageTypes.WITHER))
-            return false;
-        if (source.is(DamageTypes.WITHER_SKULL))
-            return false;
+    public boolean hurt(@NotNull DamageSource source, float amount) {
+        amount = DAMAGE_MODIFIER.compute(source, amount);
         this.entityData.set(HEALTH, this.entityData.get(HEALTH) - amount);
 
         return super.hurt(source, amount);
@@ -124,7 +110,7 @@ public class Agm65Entity extends FastThrowableProjectile implements GeoEntity, D
     }
 
     @Override
-    public void readAdditionalSaveData(CompoundTag compound) {
+    public void readAdditionalSaveData(@NotNull CompoundTag compound) {
         super.readAdditionalSaveData(compound);
         if (compound.contains("Health")) {
             this.entityData.set(HEALTH, compound.getFloat("Health"));
@@ -138,15 +124,19 @@ public class Agm65Entity extends FastThrowableProjectile implements GeoEntity, D
         if (compound.contains("Radius")) {
             this.explosionRadius = compound.getFloat("Radius");
         }
+        if (compound.contains("Durability")) {
+            this.durability = compound.getInt("Durability");
+        }
     }
 
     @Override
-    public void addAdditionalSaveData(CompoundTag compound) {
+    public void addAdditionalSaveData(@NotNull CompoundTag compound) {
         super.addAdditionalSaveData(compound);
         compound.putFloat("Health", this.entityData.get(HEALTH));
         compound.putFloat("Damage", this.damage);
         compound.putFloat("ExplosionDamage", this.explosionDamage);
         compound.putFloat("Radius", this.explosionRadius);
+        compound.putInt("Durability", this.durability);
     }
 
     @Override
@@ -157,9 +147,9 @@ public class Agm65Entity extends FastThrowableProjectile implements GeoEntity, D
     @Override
     protected void onHitEntity(EntityHitResult result) {
         Entity entity = result.getEntity();
-        if (this.level() instanceof ServerLevel && tickCount > 8) {
-            if (entity == this.getOwner() || (this.getOwner() != null && entity == this.getOwner().getVehicle()))
-                return;
+        if (entity == this.getOwner() || (this.getOwner() != null && entity == this.getOwner().getVehicle()))
+            return;
+        if (this.level() instanceof ServerLevel) {
             if (this.getOwner() instanceof LivingEntity living) {
                 if (!living.level().isClientSide() && living instanceof ServerPlayer player) {
                     living.level().playSound(null, living.blockPosition(), ModSounds.INDICATION.get(), SoundSource.VOICE, 1, 1);
@@ -174,59 +164,54 @@ public class Agm65Entity extends FastThrowableProjectile implements GeoEntity, D
                 entity.invulnerableTime = 0;
             }
 
-            for (int i = 0; i < 5; i++) {
-                apExplode(result, i);
-            }
+            causeExplode(result.getLocation());
 
-            causeExplode(result);
-            this.discard();
+            discard();
         }
     }
 
     @Override
-    public boolean isNoGravity() {
-        return true;
-    }
-
-    @Override
-    public void onHitBlock(BlockHitResult blockHitResult) {
+    public void onHitBlock(@NotNull BlockHitResult blockHitResult) {
         if (this.level() instanceof ServerLevel) {
-            double x = blockHitResult.getLocation().x;
-            double y = blockHitResult.getLocation().y;
-            double z = blockHitResult.getLocation().z;
-
-            if (ExplosionConfig.EXPLOSION_DESTROY.get()) {
-                float hardness = this.level().getBlockState(BlockPos.containing(x, y, z)).getBlock().defaultDestroyTime();
-                if (hardness <= 50 && hardness != -1) {
-                    BlockPos blockPos = BlockPos.containing(x, y, z);
-                    Block.dropResources(this.level().getBlockState(blockPos), this.level(), BlockPos.containing(x, y, z), null);
-                    this.level().destroyBlock(blockPos, true);
+            BlockPos resultPos = blockHitResult.getBlockPos();
+            float hardness = this.level().getBlockState(resultPos).getBlock().defaultDestroyTime();
+            if (hardness != -1) {
+                if (ExplosionConfig.EXPLOSION_DESTROY.get()) {
+                    if (firstHit) {
+                        causeExplode(blockHitResult.getLocation());
+                        firstHit = false;
+                        Mod.queueServerWork(3, this::discard);
+                    }
+                    this.level().destroyBlock(resultPos, true);
                 }
             }
-
-            for (int i = 0; i < 5; i++) {
-                apExplode(blockHitResult, i);
+            if (!ExplosionConfig.EXPLOSION_DESTROY.get()) {
+                causeExplode(blockHitResult.getLocation());
+                this.discard();
             }
-
-            causeExplode(blockHitResult);
         }
     }
 
-    private void apExplode(HitResult result, int index) {
+    private void causeExplode(Vec3 vec3) {
         CustomExplosion explosion = new CustomExplosion(this.level(), this,
                 ModDamageTypes.causeProjectileBoomDamage(this.level().registryAccess(),
                         this,
                         this.getOwner()),
                 explosionDamage,
-                result.getLocation().x + index * getDeltaMovement().normalize().x,
-                result.getLocation().y + index * getDeltaMovement().normalize().y,
-                result.getLocation().z + index * getDeltaMovement().normalize().z,
-                0.5f * explosionRadius,
+                vec3.x,
+                vec3.y,
+                vec3.z,
+                explosionRadius,
                 ExplosionConfig.EXPLOSION_DESTROY.get() ? Explosion.BlockInteraction.DESTROY : Explosion.BlockInteraction.KEEP, true).
                 setDamageMultiplier(1);
         explosion.explode();
-        net.minecraftforge.event.ForgeEventFactory.onExplosionStart(this.level(), explosion);
+        ForgeEventFactory.onExplosionStart(this.level(), explosion);
         explosion.finalizeExplosion(false);
+        if (explosionRadius > 9) {
+            ParticleTool.spawnHugeExplosionParticles(this.level(), vec3);
+        } else {
+            ParticleTool.spawnMediumExplosionParticles(this.level(), vec3);
+        }
     }
 
     @Override
@@ -236,9 +221,10 @@ public class Agm65Entity extends FastThrowableProjectile implements GeoEntity, D
         List<Entity> decoy = SeekTool.seekLivingEntities(this, this.level(), 32, 90);
 
         for (var e : decoy) {
-            if (e instanceof DecoyEntity decoyEntity && !distracted) {
-                this.entityData.set(TARGET_UUID, decoyEntity.getDecoyUUID());
-                distracted = true;
+            if (e.getType().is(ModTags.EntityTypes.DECOY) && !this.distracted) {
+                this.entityData.set(TARGET_UUID, e.getStringUUID());
+                this.distracted = true;
+                break;
             }
         }
 
@@ -289,24 +275,12 @@ public class Agm65Entity extends FastThrowableProjectile implements GeoEntity, D
         float f = (float) Mth.clamp(1 - 0.005 * getDeltaMovement().length(), 0.001, 1);
 
         this.setDeltaMovement(this.getDeltaMovement().multiply(f, f, f));
+        destroyBlock();
     }
 
-    private void causeExplode(HitResult result) {
-        CustomExplosion explosion = new CustomExplosion(this.level(), this,
-                ModDamageTypes.causeProjectileBoomDamage(this.level().registryAccess(),
-                        this,
-                        this.getOwner()),
-                this.explosionDamage,
-                this.getX(),
-                this.getEyeY(),
-                this.getZ(),
-                this.explosionRadius,
-                ExplosionConfig.EXPLOSION_DESTROY.get() ? Explosion.BlockInteraction.DESTROY : Explosion.BlockInteraction.KEEP, true).
-                setDamageMultiplier(1);
-        explosion.explode();
-        net.minecraftforge.event.ForgeEventFactory.onExplosionStart(this.level(), explosion);
-        explosion.finalizeExplosion(false);
-        ParticleTool.spawnHugeExplosionParticles(this.level(), result.getLocation());
+    @Override
+    public boolean isNoGravity() {
+        return true;
     }
 
     private PlayState movementPredicate(AnimationState<Agm65Entity> event) {
@@ -334,12 +308,12 @@ public class Agm65Entity extends FastThrowableProjectile implements GeoEntity, D
     }
 
     @Override
-    public SoundEvent getCloseSound() {
+    public @NotNull SoundEvent getCloseSound() {
         return ModSounds.ROCKET_ENGINE.get();
     }
 
     @Override
-    public SoundEvent getSound() {
+    public @NotNull SoundEvent getSound() {
         return ModSounds.ROCKET_FLY.get();
     }
 
@@ -349,7 +323,7 @@ public class Agm65Entity extends FastThrowableProjectile implements GeoEntity, D
     }
 
     @Override
-    public Packet<ClientGamePacketListener> getAddEntityPacket() {
+    public @NotNull Packet<ClientGamePacketListener> getAddEntityPacket() {
         return NetworkHooks.getEntitySpawningPacket(this);
     }
 

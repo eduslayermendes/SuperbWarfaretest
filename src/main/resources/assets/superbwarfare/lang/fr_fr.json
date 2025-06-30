@@ -106,7 +106,7 @@
   "item.superbwarfare.mk_42_blueprint": "Plan de 5''/54 Mk42",
   "item.superbwarfare.mle_1934_blueprint": "Plan de 138.6mm50 Mle1934 R1938",
   "item.superbwarfare.annihilator_blueprint": "Plan de Annihilator Energy Gun",
-  "item.superbwarfare.m2hb_blueprint": "Plan de M2HB",
+  "item.superbwarfare.m_2_hb_blueprint": "Plan de M2HB",
   "item.superbwarfare.secondary_cataclysm_blueprint": "Plan de Cataclysme Secondaire",
 
   "item.superbwarfare.common_material_pack": "Pack de matériaux communs",
@@ -514,9 +514,9 @@
   "config.superbwarfare.client.display.camera_rotate.des": "Vue légèrement secouée lorsque vous tenez une arme à feu",
   "config.superbwarfare.client.display.armor_plate_hud": "HUD de la plaque d'armure",
   "config.superbwarfare.client.display.armor_plate_hud.des": "Affiche la durabilité de la plaque pare-balles actuellement équipée sur l'armure de poitrine dans le coin inférieur gauche lorsqu'il est activé",
-  "config.superbwarfare.client.vehicle": "Contrôler le véhicule",
-  "config.superbwarfare.client.vehicle.invert_aircraft_control": "Inverser le contrôle de l'aéronef",
-  "config.superbwarfare.client.vehicle.left_click_reload.des": "Définir sur VRAI pour inverser le contrôle de l'aéronef",
+  "config.superbwarfare.client.control": "Contrôler le véhicule",
+  "config.superbwarfare.client.control.invert_aircraft_control": "Inverser le contrôle de l'aéronef",
+  "config.superbwarfare.client.control.invert_aircraft_control.des": "Définir sur VRAI pour inverser le contrôle de l'aéronef",
 
   "config.superbwarfare.common.gameplay": "Configuration du gameplay",
   "config.superbwarfare.common.gameplay.respawn_reload": "Rechargement après réapparition",

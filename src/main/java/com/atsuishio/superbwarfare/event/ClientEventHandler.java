@@ -64,6 +64,7 @@ import software.bernie.geckolib.core.animatable.model.CoreGeoBone;
 import software.bernie.geckolib.core.animation.AnimationProcessor;
 
 import java.util.List;
+import java.util.UUID;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.function.Supplier;
 
@@ -729,7 +730,7 @@ public class ClientEventHandler {
         if (!(stack.getItem() instanceof GunItem)) return;
         var data = GunData.from(stack);
 
-        Mod.PACKET_HANDLER.sendToServer(new ShootMessage(gunSpread, zoom));
+        Mod.PACKET_HANDLER.sendToServer(new ShootMessage(gunSpread, zoom, entity != null ? entity.getUUID() : UUID.randomUUID()));
         fireRecoilTime = 10;
 
         var gunRecoilY = data.recoilY() * 10;
@@ -968,7 +969,7 @@ public class ClientEventHandler {
         float pitch = event.getPitch();
         float roll = event.getRoll();
 
-        shakeTime = Mth.lerp(0.05 * event.getPartialTick(), shakeTime, 0);
+        shakeTime = Mth.lerp(0.02 * event.getPartialTick(), shakeTime, 0);
 
         if (player != null && shakeTime > 0) {
             float shakeRadiusAmplitude = (float) Mth.clamp(1 - player.position().distanceTo(new Vec3(shakePos[0], shakePos[1], shakePos[2])) / shakeRadius, 0, 1);
@@ -978,17 +979,16 @@ public class ClientEventHandler {
             if (shakeType > 0) {
                 event.setYaw((float) (yaw + (shakeTime * Math.sin(0.5 * Math.PI * shakeTime) * shakeAmplitude * shakeRadiusAmplitude * shakeType * (onVehicle ? 0.1 : 1))));
                 event.setPitch((float) (pitch - (shakeTime * Math.sin(0.5 * Math.PI * shakeTime) * shakeAmplitude * shakeRadiusAmplitude * shakeType * (onVehicle ? 0.1 : 1))));
-                event.setRoll((float) (roll - (shakeTime * Math.sin(0.5 * Math.PI * shakeTime) * shakeAmplitude * shakeRadiusAmplitude * (onVehicle ? 0.1 : 1))));
+                cameraRoll = (float) (roll - (shakeTime * Math.sin(0.5 * Math.PI * shakeTime) * shakeAmplitude * shakeRadiusAmplitude * (onVehicle ? 0.1 : 1)));
             } else {
                 event.setYaw((float) (yaw - (shakeTime * Math.sin(0.5 * Math.PI * shakeTime) * shakeAmplitude * shakeRadiusAmplitude * shakeType * (onVehicle ? 0.1 : 1))));
                 event.setPitch((float) (pitch + (shakeTime * Math.sin(0.5 * Math.PI * shakeTime) * shakeAmplitude * shakeRadiusAmplitude * shakeType * (onVehicle ? 0.1 : 1))));
-                event.setRoll((float) (roll + (shakeTime * Math.sin(0.5 * Math.PI * shakeTime) * shakeAmplitude * shakeRadiusAmplitude * (onVehicle ? 0.1 : 1))));
+                cameraRoll = (float) (roll + (shakeTime * Math.sin(0.5 * Math.PI * shakeTime) * shakeAmplitude * shakeRadiusAmplitude * (onVehicle ? 0.1 : 1)));
             }
         }
 
         cameraPitch = event.getPitch();
         cameraYaw = event.getYaw();
-        cameraRoll = event.getRoll();
 
         if (player != null && player.getVehicle() instanceof ArmedVehicleEntity iArmedVehicle && iArmedVehicle.banHand(player)) {
             return;
@@ -1235,11 +1235,11 @@ public class ClientEventHandler {
             if (recoilY > 0) {
                 event.setYaw((float) (yaw - shake[0] * rpm));
                 event.setPitch((float) (pitch + shake[0] * rpm));
-                event.setRoll((float) (roll + shake[1] * rpm));
+                cameraRoll = (float) (roll + shake[1] * rpm);
             } else if (recoilY <= 0) {
                 event.setYaw((float) (yaw + shake[0] * rpm));
                 event.setPitch((float) (pitch - shake[0] * rpm));
-                event.setRoll((float) (roll - shake[1] * rpm));
+                cameraRoll = (float) (roll - shake[1] * rpm);
             }
         }
     }
@@ -1369,7 +1369,7 @@ public class ClientEventHandler {
                     (float) Mth.nextDouble(RandomSource.create(), -3, 3) * shakeStrength);
             event.setPitch(Minecraft.getInstance().gameRenderer.getMainCamera().getXRot() +
                     (float) Mth.nextDouble(RandomSource.create(), -3, 3) * shakeStrength);
-            event.setRoll((float) Mth.nextDouble(RandomSource.create(), 8, 12) * shakeStrength);
+            cameraRoll = (float) Mth.nextDouble(RandomSource.create(), 8, 12) * shakeStrength;
         }
     }
 
@@ -1428,7 +1428,7 @@ public class ClientEventHandler {
             event.setYaw((float) (yaw + cameraRot[1] + (DisplayConfig.CAMERA_ROTATE.get() ? 0.8 : 0) * turnRot[1]));
         }
 
-        event.setRoll((float) (roll + cameraRot[2] + (DisplayConfig.CAMERA_ROTATE.get() ? 0.35 : 0) * turnRot[2]));
+        cameraRoll = (float) (roll + cameraRot[2] + (DisplayConfig.CAMERA_ROTATE.get() ? 0.35 : 0) * turnRot[2]);
     }
 
     private static void handleBowPullAnimation(LivingEntity entity, ItemStack stack) {
@@ -1503,14 +1503,17 @@ public class ClientEventHandler {
                             ClientEventHandler.entity = SeekTool.seekLivingEntity(player, player.level(), 32 + 8 * (intelligentChipLevel - 1), 16 / customZoom);
                         }
                         if (entity != null && entity.isAlive()) {
-                            Vec3 toVec = getVec3(event, player);
+                            Vec3 targetVec = new Vec3(Mth.lerp(event.getPartialTick(), entity.xo, entity.getX()), Mth.lerp(event.getPartialTick(), entity.yo + entity.getEyeHeight(), entity.getEyeY()), Mth.lerp(event.getPartialTick(), entity.zo, entity.getZ()));
+                            Vec3 playerVec = new Vec3(Mth.lerp(event.getPartialTick(), player.xo - 0.1 * player.getViewVector(1).x, player.getX() - 0.1 * player.getViewVector(1).x),
+                                    Mth.lerp(event.getPartialTick(), player.yo + player.getEyeHeight() - 0.1 * player.getViewVector(1).y, player.getEyeY() - 0.1 * player.getViewVector(1).y),
+                                    Mth.lerp(event.getPartialTick(), player.zo - 0.1 * player.getViewVector(1).z, player.getZ() - 0.1 * player.getViewVector(1).z));
+                            Vec3 toVec = RangeTool.calculateFiringSolution(playerVec, targetVec, entity.getDeltaMovement(), data.velocity(), 0.03);
                             look(player, toVec);
                         }
                     }
                 } else {
                     entity = null;
                 }
-
             }
             return;
         }
@@ -1522,12 +1525,6 @@ public class ClientEventHandler {
         }
     }
 
-    private static Vec3 getVec3(ViewportEvent.ComputeFov event, Player player) {
-        Vec3 targetVec = new Vec3(Mth.lerp(event.getPartialTick(), entity.xo, entity.getX()), Mth.lerp(event.getPartialTick(), entity.yo + entity.getEyeHeight(), entity.getEyeY()), Mth.lerp(event.getPartialTick(), entity.zo, entity.getZ()));
-        Vec3 playerVec = new Vec3(Mth.lerp(event.getPartialTick(), player.xo, player.getX()), Mth.lerp(event.getPartialTick(), player.yo + player.getEyeHeight(), player.getEyeY()), Mth.lerp(event.getPartialTick(), player.zo, player.getZ()));
-        return playerVec.vectorTo(targetVec);
-    }
-
     public static void look(Player player, Vec3 pTarget) {
         double d0 = pTarget.x;
         double d1 = pTarget.y;
@@ -1535,9 +1532,6 @@ public class ClientEventHandler {
         double d3 = Math.sqrt(d0 * d0 + d2 * d2);
         player.setXRot(Mth.wrapDegrees((float) (-(Mth.atan2(d1, d3) * 57.2957763671875))));
         player.setYRot(Mth.wrapDegrees((float) (Mth.atan2(d2, d0) * 57.2957763671875) - 90.0F));
-        player.setYHeadRot(player.getYRot());
-        player.xRotO = player.getXRot();
-        player.yRotO = player.getYRot();
     }
 
     @SubscribeEvent

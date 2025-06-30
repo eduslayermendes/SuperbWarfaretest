@@ -6,6 +6,7 @@ import net.minecraft.tags.BlockTags;
 import net.minecraft.tags.ItemTags;
 import net.minecraft.tags.TagKey;
 import net.minecraft.world.damagesource.DamageType;
+import net.minecraft.world.entity.EntityType;
 import net.minecraft.world.item.Item;
 import net.minecraft.world.level.block.Block;
 
@@ -58,8 +59,24 @@ public class ModTags {
         public static final TagKey<DamageType> PROJECTILE = tag("projectile");
         public static final TagKey<DamageType> PROJECTILE_ABSOLUTE = tag("projectile_absolute");
 
+        // 在载具上的实体受到带有此标签的伤害类型的伤害时，不会将伤害转移到载具上
+        public static final TagKey<DamageType> VEHICLE_IGNORE = tag("vehicle_ignore");
+        // 在载具上的实体受到带有此标签的伤害类型的伤害时，只会受到伤害减免，而不会转移到载具上
+        public static final TagKey<DamageType> VEHICLE_NOT_ABSORB = tag("vehicle_not_absorb");
+
         private static TagKey<DamageType> tag(String name) {
             return TagKey.create(Registries.DAMAGE_TYPE, Mod.loc(name));
+        }
+    }
+
+    public static class EntityTypes {
+        public static final TagKey<EntityType<?>> AERIAL_BOMB = tag("aerial_bomb");
+        public static final TagKey<EntityType<?>> DESTROYABLE_PROJECTILE = tag("destroyable_projectile");
+        public static final TagKey<EntityType<?>> DECOY = tag("decoy");
+        public static final TagKey<EntityType<?>> NO_EXPERIENCE = tag("no_experience");
+
+        private static TagKey<EntityType<?>> tag(String name) {
+            return TagKey.create(Registries.ENTITY_TYPE, Mod.loc(name));
         }
     }
 }

@@ -5,11 +5,11 @@ import com.atsuishio.superbwarfare.client.PoseTool;
 import com.atsuishio.superbwarfare.client.renderer.gun.JavelinItemRenderer;
 import com.atsuishio.superbwarfare.client.tooltip.component.LauncherImageComponent;
 import com.atsuishio.superbwarfare.data.gun.GunData;
-import com.atsuishio.superbwarfare.entity.projectile.DecoyEntity;
 import com.atsuishio.superbwarfare.entity.projectile.JavelinMissileEntity;
 import com.atsuishio.superbwarfare.entity.vehicle.base.VehicleEntity;
 import com.atsuishio.superbwarfare.event.ClientEventHandler;
 import com.atsuishio.superbwarfare.init.ModSounds;
+import com.atsuishio.superbwarfare.init.ModTags;
 import com.atsuishio.superbwarfare.item.gun.GunItem;
 import com.atsuishio.superbwarfare.network.message.receive.ShootClientMessage;
 import com.atsuishio.superbwarfare.perk.Perk;
@@ -55,6 +55,7 @@ import javax.annotation.ParametersAreNonnullByDefault;
 import java.util.List;
 import java.util.Optional;
 import java.util.Set;
+import java.util.UUID;
 import java.util.function.Consumer;
 
 public class JavelinItem extends GunItem {
@@ -125,26 +126,23 @@ public class JavelinItem extends GunItem {
         if (entity instanceof Player player && selected) {
             var tag = stack.getOrCreateTag();
             if (tag.getBoolean("Seeking")) {
-
                 List<Entity> decoy = SeekTool.seekLivingEntities(player, player.level(), 512, 8);
                 for (var e : decoy) {
-                    if (e instanceof DecoyEntity decoyEntity) {
-                        tag.putString("TargetEntity", decoyEntity.getDecoyUUID());
-                        tag.putDouble("TargetPosX", decoyEntity.getPosition().x);
-                        tag.putDouble("TargetPosY", decoyEntity.getPosition().y);
-                        tag.putDouble("TargetPosZ", decoyEntity.getPosition().z);
+                    if (e.getType().is(ModTags.EntityTypes.DECOY)) {
+                        tag.putString("TargetEntity", e.getStringUUID());
+                        tag.putDouble("TargetPosX", e.position().x);
+                        tag.putDouble("TargetPosY", e.position().y);
+                        tag.putDouble("TargetPosZ", e.position().z);
                     }
                 }
 
                 Entity targetEntity = EntityFindUtil.findEntity(player.level(), tag.getString("TargetEntity"));
-                Entity seekingEntity = SeekTool.seekEntity(player, player.level(), 512, 8);
-
 
                 if (tag.getInt("GuideType") == 0) {
-                    if (seekingEntity != null && seekingEntity == targetEntity) {
+                    if (targetEntity != null && VectorTool.calculateAngle(player.getViewVector(1), player.getEyePosition().vectorTo(targetEntity.getBoundingBox().getCenter())) < 8) {
                         tag.putInt("SeekTime", tag.getInt("SeekTime") + 1);
-                        if (tag.getInt("SeekTime") > 0 && (!seekingEntity.getPassengers().isEmpty() || seekingEntity instanceof VehicleEntity) && seekingEntity.tickCount % 3 == 0) {
-                            seekingEntity.level().playSound(null, seekingEntity.getOnPos(), seekingEntity instanceof Pig ? SoundEvents.PIG_HURT : ModSounds.LOCKING_WARNING.get(), SoundSource.PLAYERS, 1, 1f);
+                        if (tag.getInt("SeekTime") > 0 && (!targetEntity.getPassengers().isEmpty() || targetEntity instanceof VehicleEntity) && targetEntity.tickCount % 3 == 0) {
+                            targetEntity.level().playSound(null, targetEntity.getOnPos(), targetEntity instanceof Pig ? SoundEvents.PIG_HURT : ModSounds.LOCKING_WARNING.get(), SoundSource.PLAYERS, 1, 1f);
                         }
                     } else {
                         tag.putInt("SeekTime", 0);
@@ -154,17 +152,15 @@ public class JavelinItem extends GunItem {
                         SoundTool.playLocalSound(serverPlayer, ModSounds.JAVELIN_LOCK.get(), 1, 1);
                     }
 
-                    if (seekingEntity != null && tag.getInt("SeekTime") > 20) {
+                    if (targetEntity != null && tag.getInt("SeekTime") > 20) {
                         if (player instanceof ServerPlayer serverPlayer) {
                             SoundTool.playLocalSound(serverPlayer, ModSounds.JAVELIN_LOCKON.get(), 1, 1);
                         }
-                        if ((!seekingEntity.getPassengers().isEmpty() || seekingEntity instanceof VehicleEntity) && seekingEntity.tickCount % 2 == 0) {
-                            seekingEntity.level().playSound(null, seekingEntity.getOnPos(), seekingEntity instanceof Pig ? SoundEvents.PIG_HURT : ModSounds.LOCKED_WARNING.get(), SoundSource.PLAYERS, 1, 0.95f);
+                        if ((!targetEntity.getPassengers().isEmpty() || targetEntity instanceof VehicleEntity) && targetEntity.tickCount % 2 == 0) {
+                            targetEntity.level().playSound(null, targetEntity.getOnPos(), targetEntity instanceof Pig ? SoundEvents.PIG_HURT : ModSounds.LOCKED_WARNING.get(), SoundSource.PLAYERS, 1, 0.95f);
                         }
                     }
-
                 } else if (tag.getInt("GuideType") == 1) {
-
                     Vec3 toVec = player.getEyePosition().vectorTo(new Vec3(tag.getDouble("TargetPosX"), tag.getDouble("TargetPosY"), tag.getDouble("TargetPosZ"))).normalize();
                     if (VectorTool.calculateAngle(player.getViewVector(1), toVec) < 8) {
                         tag.putInt("SeekTime", tag.getInt("SeekTime") + 1);
@@ -181,6 +177,12 @@ public class JavelinItem extends GunItem {
                             SoundTool.playLocalSound(serverPlayer, ModSounds.JAVELIN_LOCKON.get(), 1, 1);
                         }
                     }
+                }
+
+                Entity seekingEntity = SeekTool.seekEntity(player, player.level(), 512, 8);
+
+                if (seekingEntity != null && seekingEntity.getType().is(ModTags.EntityTypes.DECOY)) {
+                    tag.putInt("SeekTime", 0);
                 }
             }
         } else {
@@ -280,7 +282,7 @@ public class JavelinItem extends GunItem {
     }
 
     @Override
-    public void onShoot(GunData data, Player player, double spread, boolean zoom) {
+    public void onShoot(GunData data, Player player, double spread, boolean zoom, UUID uuid) {
     }
 
     @Override

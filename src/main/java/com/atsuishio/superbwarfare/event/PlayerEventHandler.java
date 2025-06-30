@@ -1,16 +1,21 @@
 package com.atsuishio.superbwarfare.event;
 
 import com.atsuishio.superbwarfare.Mod;
+import com.atsuishio.superbwarfare.capability.ModCapabilities;
+import com.atsuishio.superbwarfare.capability.player.PlayerVariable;
 import com.atsuishio.superbwarfare.config.common.GameplayConfig;
 import com.atsuishio.superbwarfare.config.server.MiscConfig;
 import com.atsuishio.superbwarfare.data.gun.GunData;
+import com.atsuishio.superbwarfare.entity.vehicle.base.VehicleEntity;
 import com.atsuishio.superbwarfare.init.ModItems;
+import com.atsuishio.superbwarfare.init.ModParticleTypes;
+import com.atsuishio.superbwarfare.init.ModSounds;
 import com.atsuishio.superbwarfare.init.ModTags;
 import com.atsuishio.superbwarfare.item.gun.GunItem;
-import com.atsuishio.superbwarfare.network.ModVariables;
-import com.atsuishio.superbwarfare.network.PlayerVariable;
 import com.atsuishio.superbwarfare.network.message.receive.SimulationDistanceMessage;
 import com.atsuishio.superbwarfare.tools.InventoryTool;
+import com.atsuishio.superbwarfare.tools.TraceTool;
+import net.minecraft.core.BlockPos;
 import net.minecraft.server.level.ServerLevel;
 import net.minecraft.server.level.ServerPlayer;
 import net.minecraft.sounds.SoundEvents;
@@ -20,13 +25,17 @@ import net.minecraft.world.entity.ai.attributes.AttributeModifier;
 import net.minecraft.world.entity.ai.attributes.Attributes;
 import net.minecraft.world.entity.player.Player;
 import net.minecraft.world.item.ItemStack;
+import net.minecraft.world.phys.Vec3;
 import net.minecraftforge.event.AnvilUpdateEvent;
 import net.minecraftforge.event.TickEvent;
+import net.minecraftforge.event.entity.player.AttackEntityEvent;
 import net.minecraftforge.event.entity.player.PlayerEvent;
 import net.minecraftforge.eventbus.api.SubscribeEvent;
 import net.minecraftforge.network.PacketDistributor;
 
 import java.util.UUID;
+
+import static com.atsuishio.superbwarfare.tools.ParticleTool.sendParticle;
 
 @net.minecraftforge.fml.common.Mod.EventBusSubscriber
 public class PlayerEventHandler {
@@ -167,7 +176,7 @@ public class PlayerEventHandler {
             attr.removeModifier(TACTICAL_SPRINT_UUID);
         }
 
-        if (MiscConfig.ALLOW_TACTICAL_SPRINT.get() && player.getCapability(ModVariables.PLAYER_VARIABLE, null).orElse(new PlayerVariable()).tacticalSprint) {
+        if (MiscConfig.ALLOW_TACTICAL_SPRINT.get() && player.getCapability(ModCapabilities.PLAYER_VARIABLE, null).orElse(new PlayerVariable()).tacticalSprint) {
             player.setSprinting(true);
             attr.addTransientModifier(new AttributeModifier(TACTICAL_SPRINT_UUID, Mod.ATTRIBUTE_MODIFIER,
                     0.25, AttributeModifier.Operation.MULTIPLY_BASE));
@@ -188,6 +197,25 @@ public class PlayerEventHandler {
             event.setOutput(output);
             event.setCost(10);
             event.setMaterialCost(1);
+        }
+    }
+
+    @SubscribeEvent
+    public static void onAttackEntity(AttackEntityEvent event) {
+        var target = event.getTarget();
+        if (target instanceof VehicleEntity vehicle) {
+            Vec3 position = TraceTool.playerFindLookingPos(event.getEntity(), vehicle, event.getEntity().getEntityReach());
+
+            if (position != null) {
+                if (vehicle.shouldSendHitSounds()) {
+                    vehicle.level().playSound(null, BlockPos.containing(position), ModSounds.HIT.get(), SoundSource.PLAYERS, 1, 1);
+                }
+
+                if (vehicle.shouldSendHitParticles() && vehicle.level() instanceof ServerLevel serverLevel) {
+                    sendParticle(serverLevel, ModParticleTypes.FIRE_STAR.get(), position.x, position.y, position.z,
+                            2, 0, 0, 0, 0.2, false);
+                }
+            }
         }
     }
 }

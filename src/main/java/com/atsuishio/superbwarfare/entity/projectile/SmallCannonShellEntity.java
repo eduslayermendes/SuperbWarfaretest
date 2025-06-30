@@ -17,6 +17,7 @@ import net.minecraft.network.protocol.game.ClientGamePacketListener;
 import net.minecraft.server.level.ServerLevel;
 import net.minecraft.server.level.ServerPlayer;
 import net.minecraft.sounds.SoundSource;
+import net.minecraft.util.Mth;
 import net.minecraft.world.entity.Entity;
 import net.minecraft.world.entity.EntityType;
 import net.minecraft.world.entity.LivingEntity;
@@ -109,6 +110,8 @@ public class SmallCannonShellEntity extends FastThrowableProjectile implements G
     @Override
     protected void onHitEntity(EntityHitResult result) {
         Entity entity = result.getEntity();
+
+        if (this.getOwner() != null && this.getOwner().getVehicle() != null && entity == this.getOwner().getVehicle()) return;
         if (this.level() instanceof ServerLevel) {
 
             if (this.getOwner() instanceof LivingEntity living) {
@@ -133,9 +136,21 @@ public class SmallCannonShellEntity extends FastThrowableProjectile implements G
 
     @Override
     public void onHitBlock(BlockHitResult blockHitResult) {
-        super.onHitBlock(blockHitResult);
         BlockPos resultPos = blockHitResult.getBlockPos();
         BlockState state = this.level().getBlockState(resultPos);
+
+        if (this.level() instanceof ServerLevel) {
+            float hardness = this.level().getBlockState(resultPos).getBlock().defaultDestroyTime();
+            if (hardness != -1) {
+                if (ExplosionConfig.EXPLOSION_DESTROY.get() && this.blockInteraction == null) {
+                    boolean destroy = Math.random() < Mth.clamp(1 - (hardness / 50), 0.1 , 1);
+                    if (destroy) {
+                        this.level().destroyBlock(resultPos, true);
+                    }
+                }
+            }
+        }
+
         if (state.getBlock() instanceof BellBlock bell) {
             bell.attemptToRing(this.level(), resultPos, blockHitResult.getDirection());
         }
@@ -198,7 +213,6 @@ public class SmallCannonShellEntity extends FastThrowableProjectile implements G
                     .toList();
             for (var entity : entities) {
                 causeExplode(entity.position(), false);
-
                 entity.discard();
                 this.discard();
             }

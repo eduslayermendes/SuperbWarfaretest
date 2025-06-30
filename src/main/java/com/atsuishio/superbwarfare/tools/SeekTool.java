@@ -1,12 +1,11 @@
 package com.atsuishio.superbwarfare.tools;
 
 import com.atsuishio.superbwarfare.config.server.SeekConfig;
-import com.atsuishio.superbwarfare.entity.projectile.DecoyEntity;
-import com.atsuishio.superbwarfare.entity.projectile.DestroyableProjectileEntity;
 import com.atsuishio.superbwarfare.entity.projectile.SmokeDecoyEntity;
 import com.atsuishio.superbwarfare.entity.projectile.SwarmDroneEntity;
 import com.atsuishio.superbwarfare.entity.vehicle.base.MobileVehicleEntity;
 import com.atsuishio.superbwarfare.entity.vehicle.base.VehicleEntity;
+import com.atsuishio.superbwarfare.init.ModTags;
 import net.minecraft.core.BlockPos;
 import net.minecraft.world.entity.Entity;
 import net.minecraft.world.entity.decoration.HangingEntity;
@@ -154,7 +153,7 @@ public class SeekTool {
     public static List<Entity> getEntitiesWithinRange(BlockPos pos, Level level, double range) {
         return StreamSupport.stream(EntityFindUtil.getEntities(level).getAll().spliterator(), false)
                 .filter(e -> e.distanceToSqr(pos.getX(), pos.getY(), pos.getZ()) <= range * range
-                        && baseFilter(e) && smokeFilter(e) && !(e instanceof DecoyEntity))
+                        && baseFilter(e) && smokeFilter(e) && !e.getType().is(ModTags.EntityTypes.DECOY))
                 .toList();
     }
 
@@ -173,7 +172,7 @@ public class SeekTool {
 
     public static boolean baseFilter(Entity entity) {
         return entity.isAlive()
-                && !(entity instanceof HangingEntity || (entity instanceof Projectile && !(entity instanceof DestroyableProjectileEntity)))
+                && !(entity instanceof HangingEntity || (entity instanceof Projectile && !entity.getType().is(ModTags.EntityTypes.DESTROYABLE_PROJECTILE)))
                 && !(entity instanceof Player player && player.isSpectator())
                 && !isInBlackList(entity);
     }

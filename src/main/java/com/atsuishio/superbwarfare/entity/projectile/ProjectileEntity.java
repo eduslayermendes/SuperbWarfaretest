@@ -2,10 +2,13 @@ package com.atsuishio.superbwarfare.entity.projectile;
 
 import com.atsuishio.superbwarfare.Mod;
 import com.atsuishio.superbwarfare.block.BarbedWireBlock;
+import com.atsuishio.superbwarfare.client.particle.BulletDecalOption;
 import com.atsuishio.superbwarfare.config.server.ProjectileConfig;
 import com.atsuishio.superbwarfare.entity.DPSGeneratorEntity;
+import com.atsuishio.superbwarfare.entity.OBBEntity;
 import com.atsuishio.superbwarfare.entity.TargetEntity;
 import com.atsuishio.superbwarfare.entity.mixin.ICustomKnockback;
+import com.atsuishio.superbwarfare.entity.mixin.OBBHitter;
 import com.atsuishio.superbwarfare.entity.vehicle.base.VehicleEntity;
 import com.atsuishio.superbwarfare.init.*;
 import com.atsuishio.superbwarfare.item.Beast;
@@ -16,11 +19,11 @@ import com.atsuishio.superbwarfare.tools.*;
 import net.minecraft.core.BlockPos;
 import net.minecraft.core.Direction;
 import net.minecraft.core.Holder;
+import net.minecraft.core.particles.BlockParticleOption;
 import net.minecraft.core.particles.ParticleTypes;
 import net.minecraft.nbt.CompoundTag;
 import net.minecraft.nbt.ListTag;
 import net.minecraft.nbt.Tag;
-import net.minecraft.network.FriendlyByteBuf;
 import net.minecraft.network.chat.Component;
 import net.minecraft.network.protocol.game.ClientboundSoundPacket;
 import net.minecraft.network.syncher.EntityDataAccessor;
@@ -30,6 +33,7 @@ import net.minecraft.server.level.ServerLevel;
 import net.minecraft.server.level.ServerPlayer;
 import net.minecraft.sounds.SoundEvent;
 import net.minecraft.sounds.SoundSource;
+import net.minecraft.tags.EntityTypeTags;
 import net.minecraft.util.Mth;
 import net.minecraft.world.effect.MobEffectInstance;
 import net.minecraft.world.effect.MobEffects;
@@ -37,8 +41,8 @@ import net.minecraft.world.entity.Entity;
 import net.minecraft.world.entity.EntityType;
 import net.minecraft.world.entity.LivingEntity;
 import net.minecraft.world.entity.MobType;
-import net.minecraft.world.entity.ai.attributes.Attributes;
 import net.minecraft.world.entity.monster.Monster;
+import net.minecraft.world.entity.monster.Vex;
 import net.minecraft.world.entity.player.Player;
 import net.minecraft.world.entity.projectile.Projectile;
 import net.minecraft.world.item.ItemStack;
@@ -50,7 +54,6 @@ import net.minecraft.world.level.material.FluidState;
 import net.minecraft.world.phys.*;
 import net.minecraft.world.phys.shapes.VoxelShape;
 import net.minecraftforge.common.Tags;
-import net.minecraftforge.entity.IEntityAdditionalSpawnData;
 import net.minecraftforge.entity.PartEntity;
 import net.minecraftforge.network.PacketDistributor;
 import net.minecraftforge.network.PlayMessages;
@@ -66,8 +69,10 @@ import java.util.function.BiFunction;
 import java.util.function.Function;
 import java.util.function.Predicate;
 
+import static com.atsuishio.superbwarfare.tools.ParticleTool.sendParticle;
+
 @SuppressWarnings({"unused", "UnusedReturnValue", "SuspiciousNameCombination"})
-public class ProjectileEntity extends Projectile implements IEntityAdditionalSpawnData, GeoEntity, CustomSyncMotionEntity {
+public class ProjectileEntity extends Projectile implements GeoEntity, CustomSyncMotionEntity {
 
     public static final EntityDataAccessor<Float> COLOR_R = SynchedEntityData.defineId(ProjectileEntity.class, EntityDataSerializers.FLOAT);
     public static final EntityDataAccessor<Float> COLOR_G = SynchedEntityData.defineId(ProjectileEntity.class, EntityDataSerializers.FLOAT);
@@ -82,18 +87,19 @@ public class ProjectileEntity extends Projectile implements IEntityAdditionalSpa
             || input.getBlock() instanceof TrapDoorBlock
             || input.getBlock() instanceof BarbedWireBlock);
 
+    public static final float DEFAULT_R = 1.0f;
+    public static final float DEFAULT_G = 222 / 255f;
+    public static final float DEFAULT_B = 39 / 255f;
+
     @Nullable
     protected LivingEntity shooter;
     protected int shooterId;
     private float damage = 1f;
     private float headShot = 1f;
-    private float monsterMultiplier = 0.0f;
     private float legShot = 0.5f;
     private boolean beast = false;
     private boolean zoom = false;
     private float bypassArmorRate = 0.0f;
-    private float undeadMultiple = 1.0f;
-    private int jhpLevel = 0;
     private int heLevel = 0;
     private int fireLevel = 0;
     private boolean dragonBreath = false;
@@ -101,6 +107,12 @@ public class ProjectileEntity extends Projectile implements IEntityAdditionalSpa
     private boolean forceKnockback = false;
     private final ArrayList<MobEffectInstance> mobEffects = new ArrayList<>();
     private String gunItemId;
+
+    public static final Predicate<Entity> MONSTER_PREDICATE = entity -> entity instanceof Monster;
+    public static final Predicate<Entity> UNDEAD_PREDICATE = entity -> entity instanceof LivingEntity living && living.getMobType() == MobType.UNDEAD;
+    public static final Predicate<Entity> RAIDERS_PREDICATE = entity -> entity.getType().is(EntityTypeTags.RAIDERS) || entity instanceof Vex;
+
+    private final Map<Predicate<Entity>, Float> damageModifiers = new HashMap<>(Map.of(MONSTER_PREDICATE, 1.0f));
 
     public ProjectileEntity(EntityType<? extends ProjectileEntity> entityType, Level level) {
         super(entityType, level);
@@ -165,7 +177,7 @@ public class ProjectileEntity extends Projectile implements IEntityAdditionalSpa
                 this,
                 this.getBoundingBox()
                         .expandTowards(this.getDeltaMovement())
-                        .inflate(this.beast ? 3 : 1),
+                        .inflate(1),
                 PROJECTILE_TARGETS
         );
         for (Entity entity : entities) {
@@ -185,36 +197,55 @@ public class ProjectileEntity extends Projectile implements IEntityAdditionalSpa
     @Nullable
     private EntityResult getHitResult(Entity entity, Vec3 startVec, Vec3 endVec) {
         double expandHeight = entity instanceof Player && !entity.isCrouching() ? 0.0625 : 0.0;
-        AABB boundingBox = entity.getBoundingBox();
-        Vec3 velocity = new Vec3(entity.getX() - entity.xOld, entity.getY() - entity.yOld, entity.getZ() - entity.zOld);
 
-        if (entity instanceof ServerPlayer player && this.shooter instanceof ServerPlayer serverPlayerOwner) {
-            int ping = Mth.floor((serverPlayerOwner.latency / 1000.0) * 20.0 + 0.5);
-            boundingBox = HitboxHelper.getBoundingBox(player, ping);
-            velocity = HitboxHelper.getVelocity(player, ping);
-        }
-        boundingBox = boundingBox.expandTowards(0, expandHeight, 0);
+        Vec3 hitPos = null;
+        if (entity instanceof OBBEntity obbEntity) {
+            for (OBB obb : obbEntity.getOBBs()) {
+                var obbVec = obb.clip(startVec.toVector3f(), endVec.toVector3f()).orElse(null);
+                if (obbVec != null) {
+                    hitPos = new Vec3(obbVec);
+                    if (this.level() instanceof ServerLevel serverLevel) {
+                        this.level().playSound(null, BlockPos.containing(hitPos), ModSounds.HIT.get(), SoundSource.PLAYERS, 1, 1);
+                        sendParticle(serverLevel, ModParticleTypes.FIRE_STAR.get(), hitPos.x, hitPos.y, hitPos.z, 2, 0, 0, 0, 0.2, false);
+                        sendParticle(serverLevel, ParticleTypes.SMOKE, hitPos.x, hitPos.y, hitPos.z, 2, 0, 0, 0, 0.01, false);
+                    }
 
-        boundingBox = boundingBox.expandTowards(velocity.x, velocity.y, velocity.z);
-
-        double playerHitboxOffset = 3;
-        if (entity instanceof ServerPlayer) {
-            if (entity.getVehicle() != null) {
-                boundingBox = boundingBox.move(velocity.multiply(playerHitboxOffset / 2, playerHitboxOffset / 2, playerHitboxOffset / 2));
+                    var acc = OBBHitter.getInstance(this);
+                    acc.sbw$setCurrentHitPart(obb.part());
+                }
             }
-            boundingBox = boundingBox.move(velocity.multiply(playerHitboxOffset, playerHitboxOffset, playerHitboxOffset));
-        }
+        } else {
+            AABB boundingBox = entity.getBoundingBox();
+            Vec3 velocity = new Vec3(entity.getX() - entity.xOld, entity.getY() - entity.yOld, entity.getZ() - entity.zOld);
 
-        if (entity.getVehicle() != null) {
-            boundingBox = boundingBox.move(velocity.multiply(-2.5, -2.5, -2.5));
-        }
-        boundingBox = boundingBox.move(velocity.multiply(-5, -5, -5));
+            if (entity instanceof ServerPlayer player && this.shooter instanceof ServerPlayer serverPlayerOwner) {
+                int ping = Mth.floor((serverPlayerOwner.latency / 1000.0) * 20.0 + 0.5);
+                boundingBox = HitboxHelper.getBoundingBox(player, ping);
+                velocity = HitboxHelper.getVelocity(player, ping);
+            }
+            boundingBox = boundingBox.expandTowards(0, expandHeight, 0);
+            boundingBox = boundingBox.expandTowards(velocity.x, velocity.y, velocity.z);
 
-        if (this.beast) {
-            boundingBox = boundingBox.inflate(3);
-        }
+            double playerHitboxOffset = 3;
+            if (entity instanceof ServerPlayer) {
+                if (entity.getVehicle() != null) {
+                    boundingBox = boundingBox.move(velocity.multiply(playerHitboxOffset / 2, playerHitboxOffset / 2, playerHitboxOffset / 2));
+                }
+                boundingBox = boundingBox.move(velocity.multiply(playerHitboxOffset, playerHitboxOffset, playerHitboxOffset));
+            }
 
-        Vec3 hitPos = boundingBox.clip(startVec, endVec).orElse(null);
+            if (entity.getVehicle() != null) {
+                boundingBox = boundingBox.move(velocity.multiply(-2.5, -2.5, -2.5));
+            }
+            boundingBox = boundingBox.move(velocity.multiply(-5, -5, -5));
+
+            if (this.beast) {
+                boundingBox = boundingBox.inflate(3);
+            }
+
+            hitPos = boundingBox.clip(startVec, endVec).orElse(null);
+
+        }
 
         if (hitPos == null) {
             return null;
@@ -231,14 +262,18 @@ public class ProjectileEntity extends Projectile implements IEntityAdditionalSpa
             legShot = true;
         }
 
+        if (heLevel > 0) {
+            explosionBullet(this, this.damage, heLevel, this.damageModifiers.get(MONSTER_PREDICATE), hitPos);
+        }
+
         return new EntityResult(entity, hitPos, headshot, legShot);
     }
 
     @Override
     protected void defineSynchedData() {
-        this.entityData.define(COLOR_R, 1.0f);
-        this.entityData.define(COLOR_G, 222 / 255f);
-        this.entityData.define(COLOR_B, 39 / 255f);
+        this.entityData.define(COLOR_R, DEFAULT_R);
+        this.entityData.define(COLOR_G, DEFAULT_G);
+        this.entityData.define(COLOR_B, DEFAULT_B);
     }
 
     @Override
@@ -292,7 +327,7 @@ public class ProjectileEntity extends Projectile implements IEntityAdditionalSpa
             this.setPosRaw(this.getX() + vec.x, this.getY() + vec.y, this.getZ() + vec.z);
         }
 
-        this.setDeltaMovement(vec.x, vec.y - 0.02, vec.z);
+        this.setDeltaMovement(this.getDeltaMovement().add(0, -0.05, 0));
 
         if (this.tickCount > (fireLevel > 0 ? 10 : 40)) {
             this.discard();
@@ -319,43 +354,7 @@ public class ProjectileEntity extends Projectile implements IEntityAdditionalSpa
     }
 
     @Override
-    protected void readAdditionalSaveData(CompoundTag tag) {
-        this.damage = tag.getFloat("Damage");
-        this.headShot = tag.getFloat("HeadShot");
-        this.monsterMultiplier = tag.getFloat("MonsterMultiplier");
-        this.legShot = tag.getFloat("LegShot");
-        this.bypassArmorRate = tag.getFloat("BypassArmorRate");
-        this.undeadMultiple = tag.getFloat("UndeadMultiple");
-        this.knockback = tag.getFloat("Knockback");
-
-        this.beast = tag.getBoolean("Beast");
-        this.forceKnockback = tag.getBoolean("ForceKnockback");
-
-        if (tag.contains("GunId")) {
-            this.gunItemId = tag.getString("GunId");
-        }
-    }
-
-    @Override
-    protected void addAdditionalSaveData(CompoundTag tag) {
-        tag.putFloat("Damage", this.damage);
-        tag.putFloat("HeadShot", this.headShot);
-        tag.putFloat("MonsterMultiplier", this.monsterMultiplier);
-        tag.putFloat("LegShot", this.legShot);
-        tag.putFloat("BypassArmorRate", this.bypassArmorRate);
-        tag.putFloat("UndeadMultiple", this.undeadMultiple);
-        tag.putFloat("Knockback", this.knockback);
-
-        tag.putBoolean("Beast", this.beast);
-        tag.putBoolean("ForceKnockback", this.forceKnockback);
-
-        if (this.gunItemId != null) {
-            tag.putString("GunId", this.gunItemId);
-        }
-    }
-
-    @Override
-    protected void onHit(@NotNull HitResult result) {
+    protected void onHit(@Nullable HitResult result) {
         if (result instanceof BlockHitResult blockHitResult) {
             if (blockHitResult.getType() == HitResult.Type.MISS) {
                 return;
@@ -384,9 +383,9 @@ public class ProjectileEntity extends Projectile implements IEntityAdditionalSpa
                 recordHitScore(rings, dis);
             }
 
-            this.onHitBlock(hitVec);
+            this.onHitBlock(hitVec, blockHitResult);
             if (heLevel > 0) {
-                explosionBulletBlock(this, this.damage, heLevel, monsterMultiplier + 1, hitVec);
+                explosionBullet(this, this.damage, heLevel, this.damageModifiers.get(MONSTER_PREDICATE), hitVec);
             }
             if (fireLevel > 0 && this.level() instanceof ServerLevel serverLevel) {
                 ParticleTool.sendParticle(serverLevel, ParticleTypes.LAVA, hitVec.x, hitVec.y, hitVec.z,
@@ -471,13 +470,33 @@ public class ProjectileEntity extends Projectile implements IEntityAdditionalSpa
         }
     }
 
-    protected void onHitBlock(Vec3 location) {
+    protected void onHitBlock(Vec3 location, BlockHitResult result) {
         if (this.level() instanceof ServerLevel serverLevel) {
+            BlockPos pos = result.getBlockPos();
+            Direction face = result.getDirection();
+            BlockState state = level().getBlockState(pos);
+
+            BlockParticleOption particleData = new BlockParticleOption(ParticleTypes.BLOCK, state);
+
+            double speed = 0.05;
+            double vx = face.getStepX() * speed;
+            double vy = face.getStepY() * speed;
+            double vz = face.getStepZ() * speed;
+
             if (this.beast) {
                 ParticleTool.sendParticle(serverLevel, ParticleTypes.END_ROD, location.x, location.y, location.z, 15, 0.1, 0.1, 0.1, 0.05, true);
             } else {
-                ParticleTool.sendParticle(serverLevel, ModParticleTypes.BULLET_HOLE.get(), location.x, location.y, location.z, 1, 0, 0, 0, 0, true);
-                ParticleTool.sendParticle(serverLevel, ParticleTypes.SMOKE, location.x, location.y, location.z, 3, 0, 0.1, 0, 0.01, true);
+                BulletDecalOption bulletDecalOption;
+                if (this.entityData.get(COLOR_R) == DEFAULT_R && this.entityData.get(COLOR_G) == DEFAULT_G && this.entityData.get(COLOR_B) == DEFAULT_B) {
+                    bulletDecalOption = new BulletDecalOption(result.getDirection(), result.getBlockPos());
+                } else {
+                    bulletDecalOption = new BulletDecalOption(result.getDirection(), result.getBlockPos(),
+                            this.entityData.get(COLOR_R), this.entityData.get(COLOR_G), this.entityData.get(COLOR_B));
+                }
+                serverLevel.sendParticles(bulletDecalOption, location.x, location.y, location.z, 1, 0, 0, 0, 0);
+
+                ParticleTool.sendParticle(serverLevel, ParticleTypes.SMOKE, location.x, location.y, location.z, 3, vx, vy, vz, 0.01, true);
+                ParticleTool.sendParticle(serverLevel, particleData, location.x, location.y, location.z, 5, vx, vy, vz, 0.1, true);
                 this.discard();
             }
             serverLevel.playSound(null, new BlockPos((int) location.x, (int) location.y, (int) location.z), ModSounds.LAND.get(), SoundSource.BLOCKS, 1.0F, 1.0F);
@@ -487,8 +506,6 @@ public class ProjectileEntity extends Projectile implements IEntityAdditionalSpa
     protected void onHitEntity(Entity entity, boolean headshot, boolean legShot) {
         if (this.shooter == null) return;
 
-        float mMultiple = 1 + this.monsterMultiplier;
-
         if (entity == null) return;
 
         if (entity instanceof PartEntity<?> part) {
@@ -496,33 +513,17 @@ public class ProjectileEntity extends Projectile implements IEntityAdditionalSpa
         }
 
         if (entity instanceof LivingEntity living) {
-            living.level().playSound(null, living.getOnPos(), ModSounds.MELEE_HIT.get(), SoundSource.PLAYERS, 1, (float) ((2 * org.joml.Math.random() - 1) * 0.1f + 1.0f));
+            living.level().playSound(null, living.getOnPos(), ModSounds.MELEE_HIT.get(), SoundSource.PLAYERS, 1, (float) (2 * Math.random() - 1) * 0.1f + 1.0f);
+
+            if (beast) {
+                Beast.beastKill(this.shooter, living);
+                return;
+            }
         }
 
-        if (beast && entity instanceof LivingEntity living) {
-            Beast.beastKill(this.shooter, living);
-            return;
-        }
-
-        if (entity instanceof Monster) {
-            this.damage *= mMultiple;
-        }
-
-        if (entity instanceof LivingEntity living && living.getMobType() == MobType.UNDEAD) {
-            this.damage *= this.undeadMultiple;
-        }
-
-        if (entity instanceof LivingEntity living && jhpLevel > 0) {
-            this.damage *= (1.0f + 0.12f * jhpLevel) * ((float) (10 / (living.getAttributeValue(Attributes.ARMOR) + 10)) + 0.25f);
-        }
-
-        if (heLevel > 0) {
-            explosionBulletEntity(this, entity, this.damage, heLevel, mMultiple);
-        }
-
-        if (fireLevel > 0) {
-            if (!entity.level().isClientSide() && entity instanceof LivingEntity living) {
-                living.addEffect(new MobEffectInstance(ModMobEffects.BURN.get(), 60 + fireLevel * 20, fireLevel, false, false), this.shooter);
+        for (var entry : this.damageModifiers.entrySet()) {
+            if (entry.getKey().test(entity)) {
+                this.damage *= entry.getValue();
             }
         }
 
@@ -582,7 +583,7 @@ public class ProjectileEntity extends Projectile implements IEntityAdditionalSpa
         }
     }
 
-    protected void explosionBulletBlock(Entity projectile, float damage, int heLevel, float monsterMultiple, Vec3 hitVec) {
+    protected void explosionBullet(Entity projectile, float damage, int heLevel, float monsterMultiple, Vec3 hitVec) {
         CustomExplosion explosion = new CustomExplosion(projectile.level(), projectile,
                 ModDamageTypes.causeProjectileBoomDamage(projectile.level().registryAccess(), projectile, this.getShooter()), (float) ((0.9 * damage) * (1 + 0.1 * heLevel)),
                 hitVec.x, hitVec.y, hitVec.z, (float) ((1.5 + 0.02 * damage) * (1 + 0.05 * heLevel))).setDamageMultiplier(monsterMultiple).bulletExplode();
@@ -590,16 +591,6 @@ public class ProjectileEntity extends Projectile implements IEntityAdditionalSpa
         net.minecraftforge.event.ForgeEventFactory.onExplosionStart(projectile.level(), explosion);
         explosion.finalizeExplosion(false);
         ParticleTool.spawnMiniExplosionParticles(this.level(), hitVec);
-    }
-
-    protected void explosionBulletEntity(Entity projectile, Entity target, float damage, int heLevel, float monsterMultiple) {
-        CustomExplosion explosion = new CustomExplosion(projectile.level(), projectile,
-                ModDamageTypes.causeProjectileBoomDamage(projectile.level().registryAccess(), projectile, this.getShooter()), (float) ((0.8 * damage) * (1 + 0.1 * heLevel)),
-                target.getX(), target.getY(), target.getZ(), (float) ((1.5 + 0.02 * damage) * (1 + 0.05 * heLevel))).setDamageMultiplier(monsterMultiple).bulletExplode();
-        explosion.explode();
-        net.minecraftforge.event.ForgeEventFactory.onExplosionStart(projectile.level(), explosion);
-        explosion.finalizeExplosion(false);
-        ParticleTool.spawnMiniExplosionParticles(target.level(), target.position());
     }
 
     public void setDamage(float damage) {
@@ -747,14 +738,6 @@ public class ProjectileEntity extends Projectile implements IEntityAdditionalSpa
         }
     }
 
-    @Override
-    public void writeSpawnData(FriendlyByteBuf buffer) {
-    }
-
-    @Override
-    public void readSpawnData(FriendlyByteBuf additionalData) {
-    }
-
     public static class EntityResult {
         private final Entity entity;
         private final Vec3 hitVec;
@@ -812,6 +795,10 @@ public class ProjectileEntity extends Projectile implements IEntityAdditionalSpa
         return this.gunItemId;
     }
 
+    public Map<Predicate<Entity>, Float> getDamageModifiers() {
+        return damageModifiers;
+    }
+
     /**
      * Builders
      */
@@ -830,11 +817,6 @@ public class ProjectileEntity extends Projectile implements IEntityAdditionalSpa
         return this;
     }
 
-    public ProjectileEntity setMonsterMultiplier(float monsterMultiplier) {
-        this.monsterMultiplier = monsterMultiplier;
-        return this;
-    }
-
     public ProjectileEntity legShot(float legShot) {
         this.legShot = legShot;
         return this;
@@ -842,11 +824,6 @@ public class ProjectileEntity extends Projectile implements IEntityAdditionalSpa
 
     public ProjectileEntity beast() {
         this.beast = true;
-        return this;
-    }
-
-    public ProjectileEntity jhpBullet(int jhpLevel) {
-        this.jhpLevel = jhpLevel;
         return this;
     }
 
@@ -868,11 +845,6 @@ public class ProjectileEntity extends Projectile implements IEntityAdditionalSpa
 
     public ProjectileEntity bypassArmorRate(float bypassArmorRate) {
         this.bypassArmorRate = bypassArmorRate;
-        return this;
-    }
-
-    public ProjectileEntity undeadMultiple(float undeadMultiple) {
-        this.undeadMultiple = undeadMultiple;
         return this;
     }
 

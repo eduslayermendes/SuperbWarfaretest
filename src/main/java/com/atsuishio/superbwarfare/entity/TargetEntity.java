@@ -1,5 +1,6 @@
 package com.atsuishio.superbwarfare.entity;
 
+import com.atsuishio.superbwarfare.entity.vehicle.damage.DamageModifier;
 import com.atsuishio.superbwarfare.init.ModEntities;
 import com.atsuishio.superbwarfare.init.ModItems;
 import com.atsuishio.superbwarfare.init.ModSounds;
@@ -21,7 +22,6 @@ import net.minecraft.world.entity.*;
 import net.minecraft.world.entity.ai.attributes.AttributeSupplier;
 import net.minecraft.world.entity.ai.attributes.Attributes;
 import net.minecraft.world.entity.player.Player;
-import net.minecraft.world.entity.projectile.ThrownPotion;
 import net.minecraft.world.item.ItemStack;
 import net.minecraft.world.level.Level;
 import net.minecraft.world.phys.Vec3;
@@ -89,21 +89,21 @@ public class TargetEntity extends LivingEntity implements GeoEntity {
         return true;
     }
 
+    private static final DamageModifier DAMAGE_MODIFIER = DamageModifier.createDefaultModifier()
+            .immuneTo(DamageTypes.LIGHTNING_BOLT)
+            .immuneTo(DamageTypes.FALLING_ANVIL)
+            .immuneTo(DamageTypes.MAGIC);
+
     @Override
-    public boolean hurt(DamageSource source, float amount) {
-        if (source.is(DamageTypes.IN_FIRE)
-                || source.getDirectEntity() instanceof ThrownPotion
-                || source.getDirectEntity() instanceof AreaEffectCloud
-                || source.is(DamageTypes.FALL)
-                || source.is(DamageTypes.CACTUS)
-                || source.is(DamageTypes.DROWN)
-                || source.is(DamageTypes.LIGHTNING_BOLT)
-                || source.is(DamageTypes.FALLING_ANVIL)
-                || source.is(DamageTypes.DRAGON_BREATH)
-                || source.is(DamageTypes.WITHER)
-                || source.is(DamageTypes.WITHER_SKULL)
-                || source.is(DamageTypes.MAGIC)
-                || this.entityData.get(DOWN_TIME) > 0) {
+    public boolean hurt(@NotNull DamageSource source, float amount) {
+        // 不处理/kill伤害
+        if (source.is(DamageTypes.GENERIC_KILL)) {
+            this.remove(RemovalReason.KILLED);
+            return super.hurt(source, amount);
+        }
+
+        amount = DAMAGE_MODIFIER.compute(source, amount);
+        if (amount <= 0 || this.entityData.get(DOWN_TIME) > 0) {
             return false;
         }
 
@@ -118,6 +118,8 @@ public class TargetEntity extends LivingEntity implements GeoEntity {
     @SubscribeEvent
     public static void onTargetDown(LivingDeathEvent event) {
         var entity = event.getEntity();
+        // 不处理/kill伤害
+        if (event.getSource().is(DamageTypes.GENERIC_KILL)) return;
         var sourceEntity = event.getSource().getEntity();
 
         if (entity == null) return;
@@ -149,7 +151,7 @@ public class TargetEntity extends LivingEntity implements GeoEntity {
 
     @Override
     public @NotNull InteractionResult interact(Player player, @NotNull InteractionHand hand) {
-        if (player.getMainHandItem() != ItemStack.EMPTY) {
+        if (player.getMainHandItem() != ItemStack.EMPTY && player.getMainHandItem().getItem() != ModItems.CROWBAR.get()) {
             return InteractionResult.PASS;
         }
 

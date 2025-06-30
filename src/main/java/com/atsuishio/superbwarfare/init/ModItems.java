@@ -12,10 +12,7 @@ import com.atsuishio.superbwarfare.item.gun.launcher.JavelinItem;
 import com.atsuishio.superbwarfare.item.gun.launcher.M79Item;
 import com.atsuishio.superbwarfare.item.gun.launcher.RpgItem;
 import com.atsuishio.superbwarfare.item.gun.launcher.SecondaryCataclysm;
-import com.atsuishio.superbwarfare.item.gun.machinegun.DevotionItem;
-import com.atsuishio.superbwarfare.item.gun.machinegun.M60Item;
-import com.atsuishio.superbwarfare.item.gun.machinegun.MinigunItem;
-import com.atsuishio.superbwarfare.item.gun.machinegun.RpkItem;
+import com.atsuishio.superbwarfare.item.gun.machinegun.*;
 import com.atsuishio.superbwarfare.item.gun.rifle.*;
 import com.atsuishio.superbwarfare.item.gun.shotgun.Aa12Item;
 import com.atsuishio.superbwarfare.item.gun.shotgun.HomemadeShotgunItem;
@@ -81,6 +78,7 @@ public class ModItems {
     public static final RegistryObject<Item> DEVOTION = GUNS.register("devotion", DevotionItem::new);
     public static final RegistryObject<Item> RPK = GUNS.register("rpk", RpkItem::new);
     public static final RegistryObject<Item> M_60 = GUNS.register("m_60", M60Item::new);
+    public static final RegistryObject<Item> M_2_HB = GUNS.register("m_2_hb", M2HBItem::new);
     public static final RegistryObject<Item> MINIGUN = GUNS.register("minigun", MinigunItem::new);
     public static final RegistryObject<Item> M_79 = GUNS.register("m_79", M79Item::new);
     public static final RegistryObject<Item> SECONDARY_CATACLYSM = GUNS.register("secondary_cataclysm", SecondaryCataclysm::new);
@@ -110,21 +108,22 @@ public class ModItems {
     public static final RegistryObject<Item> JAVELIN_MISSILE = AMMO.register("javelin_missile", () -> new Item(new Item.Properties()));
     public static final RegistryObject<Item> MORTAR_SHELL = AMMO.register("mortar_shell", MortarShell::new);
     public static final RegistryObject<Item> POTION_MORTAR_SHELL = AMMO.register("potion_mortar_shell", PotionMortarShell::new);
-    public static final RegistryObject<Item> ROCKET = AMMO.register("rocket", Rocket::new);
+    public static final RegistryObject<Item> ROCKET = AMMO.register("rocket", RocketItem::new);
     public static final RegistryObject<Item> LUNGE_MINE = AMMO.register("lunge_mine", LungeMine::new);
     public static final RegistryObject<Item> HE_5_INCHES = AMMO.register("he_5_inches", () -> new CannonShellItem(new Item.Properties().rarity(Rarity.RARE)));
     public static final RegistryObject<Item> AP_5_INCHES = AMMO.register("ap_5_inches", () -> new CannonShellItem(new Item.Properties().rarity(Rarity.RARE)));
     public static final RegistryObject<Item> HAND_GRENADE = AMMO.register("hand_grenade", HandGrenade::new);
     public static final RegistryObject<Item> RGO_GRENADE = AMMO.register("rgo_grenade", RgoGrenade::new);
     public static final RegistryObject<Item> CLAYMORE_MINE = AMMO.register("claymore_mine", ClaymoreMine::new);
-    public static final RegistryObject<Item> C4_BOMB = AMMO.register("c4_bomb", C4Bomb::new);
-    public static final RegistryObject<Item> BLU_43_MINE = AMMO.register("blu_43_mine", Blu43Mine::new);
+    public static final RegistryObject<Item> TM_62 = AMMO.register("tm_62", Tm62Item::new);
+    public static final RegistryObject<Item> C4_BOMB = AMMO.register("c4_bomb", C4BombItem::new);
+    public static final RegistryObject<Item> BLU_43_MINE = AMMO.register("blu_43_mine", Blu43MineItem::new);
     public static final RegistryObject<Item> SMALL_SHELL = AMMO.register("small_shell", SmallShellItem::new);
-    public static final RegistryObject<Item> ROCKET_70 = AMMO.register("rocket_70", Rocket70::new);
-    public static final RegistryObject<Item> WIRE_GUIDE_MISSILE = AMMO.register("wire_guide_missile", WireGuideMissile::new);
-    public static final RegistryObject<Item> AGM = AMMO.register("agm", Agm::new);
-    public static final RegistryObject<Item> SWARM_DRONE = AMMO.register("swarm_drone", SwarmDrone::new);
-    public static final RegistryObject<Item> MEDIUM_AERIAL_BOMB = AMMO.register("medium_aerial_bomb", MediumAerialBomb::new);
+    public static final RegistryObject<Item> ROCKET_70 = AMMO.register("rocket_70", Rocket70Item::new);
+    public static final RegistryObject<Item> WIRE_GUIDE_MISSILE = AMMO.register("wire_guide_missile", WireGuideMissileItem::new);
+    public static final RegistryObject<Item> AGM = AMMO.register("agm", AgmItem::new);
+    public static final RegistryObject<Item> SWARM_DRONE = AMMO.register("swarm_drone", SwarmDroneItem::new);
+    public static final RegistryObject<Item> MEDIUM_AERIAL_BOMB = AMMO.register("medium_aerial_bomb", MediumAerialBombItem::new);
     public static final RegistryObject<Item> BEAM_TEST = AMMO.register("beam_test", BeamTest::new);
 
     /**
@@ -151,6 +150,7 @@ public class ModItems {
     public static final RegistryObject<Item> HAMMER = ITEMS.register("hammer", Hammer::new);
     public static final RegistryObject<Item> T_BATON = ITEMS.register("t_baton", TBaton::new);
     public static final RegistryObject<Item> ELECTRIC_BATON = ITEMS.register("electric_baton", ElectricBaton::new);
+    public static final RegistryObject<Item> STEEL_PIPE = ITEMS.register("steel_pipe", SteelPipe::new);
     public static final RegistryObject<Item> CROWBAR = ITEMS.register("crowbar", Crowbar::new);
     public static final RegistryObject<Item> DEFUSER = ITEMS.register("defuser", Defuser::new);
     public static final RegistryObject<Item> ARMOR_PLATE = ITEMS.register("armor_plate", ArmorPlate::new);
@@ -198,22 +198,11 @@ public class ModItems {
     public static final RegistryObject<Item> FIRING_PARAMETERS = ITEMS.register("firing_parameters", FiringParameters::new);
 
     public static final RegistryObject<Item> TUNGSTEN_ROD = ITEMS.register("tungsten_rod", () -> new Item(new Item.Properties()));
-    public static final RegistryObject<Item> IRON_BARREL = ITEMS.register("iron_barrel", () -> new Item(new Item.Properties()));
-    public static final RegistryObject<Item> IRON_ACTION = ITEMS.register("iron_action", () -> new Item(new Item.Properties()));
-    public static final RegistryObject<Item> IRON_TRIGGER = ITEMS.register("iron_trigger", () -> new Item(new Item.Properties()));
-    public static final RegistryObject<Item> IRON_SPRING = ITEMS.register("iron_spring", () -> new Item(new Item.Properties()));
-    public static final RegistryObject<Item> STEEL_BARREL = ITEMS.register("steel_barrel", () -> new Item(new Item.Properties().rarity(Rarity.RARE)));
-    public static final RegistryObject<Item> STEEL_ACTION = ITEMS.register("steel_action", () -> new Item(new Item.Properties().rarity(Rarity.RARE)));
-    public static final RegistryObject<Item> STEEL_TRIGGER = ITEMS.register("steel_trigger", () -> new Item(new Item.Properties().rarity(Rarity.RARE)));
-    public static final RegistryObject<Item> STEEL_SPRING = ITEMS.register("steel_spring", () -> new Item(new Item.Properties().rarity(Rarity.RARE)));
-    public static final RegistryObject<Item> CEMENTED_CARBIDE_BARREL = ITEMS.register("cemented_carbide_barrel", () -> new Item(new Item.Properties().rarity(Rarity.EPIC)));
-    public static final RegistryObject<Item> CEMENTED_CARBIDE_ACTION = ITEMS.register("cemented_carbide_action", () -> new Item(new Item.Properties().rarity(Rarity.EPIC)));
-    public static final RegistryObject<Item> CEMENTED_CARBIDE_TRIGGER = ITEMS.register("cemented_carbide_trigger", () -> new Item(new Item.Properties().rarity(Rarity.EPIC)));
-    public static final RegistryObject<Item> CEMENTED_CARBIDE_SPRING = ITEMS.register("cemented_carbide_spring", () -> new Item(new Item.Properties().rarity(Rarity.EPIC)));
-    public static final RegistryObject<Item> NETHERITE_BARREL = ITEMS.register("netherite_barrel", () -> new Item(new Item.Properties().rarity(RarityTool.LEGENDARY)));
-    public static final RegistryObject<Item> NETHERITE_ACTION = ITEMS.register("netherite_action", () -> new Item(new Item.Properties().rarity(RarityTool.LEGENDARY)));
-    public static final RegistryObject<Item> NETHERITE_TRIGGER = ITEMS.register("netherite_trigger", () -> new Item(new Item.Properties().rarity(RarityTool.LEGENDARY)));
-    public static final RegistryObject<Item> NETHERITE_SPRING = ITEMS.register("netherite_spring", () -> new Item(new Item.Properties().rarity(RarityTool.LEGENDARY)));
+
+    public static final Materials IRON_MATERIALS = registerMaterials("iron");
+    public static final Materials STEEL_MATERIALS = registerMaterials("steel");
+    public static final Materials CEMENTED_CARBIDE_MATERIALS = registerMaterials("cemented_carbide");
+    public static final Materials NETHERITE_MATERIALS = registerMaterials("netherite");
 
     public static final RegistryObject<Item> COMMON_MATERIAL_PACK = ITEMS.register("common_material_pack", () -> new MaterialPack(Rarity.COMMON));
     public static final RegistryObject<Item> RARE_MATERIAL_PACK = ITEMS.register("rare_material_pack", () -> new MaterialPack(Rarity.RARE));
@@ -224,7 +213,7 @@ public class ModItems {
     public static final RegistryObject<Item> GLOCK_17_BLUEPRINT = ITEMS.register("glock_17_blueprint", () -> new BlueprintItem(Rarity.COMMON));
     public static final RegistryObject<Item> MP_443_BLUEPRINT = ITEMS.register("mp_443_blueprint", () -> new BlueprintItem(Rarity.COMMON));
     public static final RegistryObject<Item> GLOCK_18_BLUEPRINT = ITEMS.register("glock_18_blueprint", () -> new BlueprintItem(Rarity.RARE));
-    public static final RegistryObject<Item> HUNTING_RIFLE_BLUEPRINT = ITEMS.register("hunting_rifle_blueprint", () -> new BlueprintItem(Rarity.EPIC));
+    public static final RegistryObject<Item> HUNTING_RIFLE_BLUEPRINT = ITEMS.register("hunting_rifle_blueprint", () -> new BlueprintItem(Rarity.RARE));
     public static final RegistryObject<Item> M_79_BLUEPRINT = ITEMS.register("m_79_blueprint", () -> new BlueprintItem(Rarity.RARE));
     public static final RegistryObject<Item> RPG_BLUEPRINT = ITEMS.register("rpg_blueprint", () -> new BlueprintItem(Rarity.RARE));
     public static final RegistryObject<Item> BOCEK_BLUEPRINT = ITEMS.register("bocek_blueprint", () -> new BlueprintItem(Rarity.EPIC));
@@ -238,7 +227,7 @@ public class ModItems {
     public static final RegistryObject<Item> VECTOR_BLUEPRINT = ITEMS.register("vector_blueprint", () -> new BlueprintItem(Rarity.EPIC));
     public static final RegistryObject<Item> MINIGUN_BLUEPRINT = ITEMS.register("minigun_blueprint", () -> new BlueprintItem(RarityTool.LEGENDARY));
     public static final RegistryObject<Item> MK_14_BLUEPRINT = ITEMS.register("mk_14_blueprint", () -> new BlueprintItem(Rarity.EPIC));
-    public static final RegistryObject<Item> SENTINEL_BLUEPRINT = ITEMS.register("sentinel_blueprint", () -> new BlueprintItem(RarityTool.LEGENDARY));
+    public static final RegistryObject<Item> SENTINEL_BLUEPRINT = ITEMS.register("sentinel_blueprint", () -> new BlueprintItem(Rarity.EPIC));
     public static final RegistryObject<Item> M_60_BLUEPRINT = ITEMS.register("m_60_blueprint", () -> new BlueprintItem(Rarity.EPIC));
     public static final RegistryObject<Item> SVD_BLUEPRINT = ITEMS.register("svd_blueprint", () -> new BlueprintItem(Rarity.EPIC));
     public static final RegistryObject<Item> MARLIN_BLUEPRINT = ITEMS.register("marlin_blueprint", () -> new BlueprintItem(Rarity.COMMON));
@@ -253,7 +242,7 @@ public class ModItems {
     public static final RegistryObject<Item> K_98_BLUEPRINT = ITEMS.register("k_98_blueprint", () -> new BlueprintItem(Rarity.RARE));
     public static final RegistryObject<Item> MOSIN_NAGANT_BLUEPRINT = ITEMS.register("mosin_nagant_blueprint", () -> new BlueprintItem(Rarity.RARE));
     public static final RegistryObject<Item> JAVELIN_BLUEPRINT = ITEMS.register("javelin_blueprint", () -> new BlueprintItem(RarityTool.LEGENDARY));
-    public static final RegistryObject<Item> M_2_HB_BLUEPRINT = ITEMS.register("m2hb_blueprint", () -> new BlueprintItem(Rarity.RARE));
+    public static final RegistryObject<Item> M_2_HB_BLUEPRINT = ITEMS.register("m_2_hb_blueprint", () -> new BlueprintItem(Rarity.RARE));
     public static final RegistryObject<Item> SECONDARY_CATACLYSM_BLUEPRINT = ITEMS.register("secondary_cataclysm_blueprint", () -> new BlueprintItem(RarityTool.LEGENDARY));
     public static final RegistryObject<Item> INSIDIOUS_BLUEPRINT = ITEMS.register("insidious_blueprint", () -> new BlueprintItem(Rarity.EPIC));
     public static final RegistryObject<Item> AURELIA_SCEPTRE_BLUEPRINT = ITEMS.register("aurelia_sceptre_blueprint", () -> new BlueprintItem(RarityTool.LEGENDARY));
@@ -292,6 +281,7 @@ public class ModItems {
     public static final RegistryObject<Item> FUMO_25 = block(ModBlocks.FUMO_25);
     public static final RegistryObject<Item> VEHICLE_DEPLOYER = BLOCKS.register("vehicle_deployer", VehicleDeployerBlockItem::new);
     public static final RegistryObject<Item> AIRCRAFT_CATAPULT = block(ModBlocks.AIRCRAFT_CATAPULT);
+    public static final RegistryObject<Item> SUPERB_ITEM_INTERFACE = block(ModBlocks.SUPERB_ITEM_INTERFACE);
 
     // 这俩放最后
     public static final RegistryObject<Item> CONTAINER = BLOCKS.register("container", ContainerBlockItem::new);
@@ -299,6 +289,25 @@ public class ModItems {
 
     private static RegistryObject<Item> block(RegistryObject<Block> block) {
         return BLOCKS.register(block.getId().getPath(), () -> new BlockItem(block.get(), new Item.Properties()));
+    }
+
+    public record Materials(
+            String name,
+            RegistryObject<Item> barrel,
+            RegistryObject<Item> action,
+            RegistryObject<Item> spring,
+            RegistryObject<Item> trigger
+    ) {
+    }
+
+    public static Materials registerMaterials(String name) {
+        return new Materials(
+                name,
+                ITEMS.register(name + "_barrel", () -> new Item(new Item.Properties())),
+                ITEMS.register(name + "_action", () -> new Item(new Item.Properties())),
+                ITEMS.register(name + "_spring", () -> new Item(new Item.Properties())),
+                ITEMS.register(name + "_trigger", () -> new Item(new Item.Properties()))
+        );
     }
 
     /**

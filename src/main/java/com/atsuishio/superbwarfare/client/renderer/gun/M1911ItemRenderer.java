@@ -10,6 +10,7 @@ import com.mojang.blaze3d.vertex.VertexConsumer;
 import net.minecraft.client.Minecraft;
 import net.minecraft.client.renderer.MultiBufferSource;
 import net.minecraft.client.renderer.RenderType;
+import net.minecraft.world.item.ItemDisplayContext;
 import net.minecraft.world.item.ItemStack;
 import software.bernie.geckolib.animatable.GeoItem;
 import software.bernie.geckolib.cache.object.GeoBone;
@@ -25,6 +26,9 @@ public class M1911ItemRenderer extends CustomGunRenderer<M1911Item> {
                                   float green, float blue, float alpha) {
         Minecraft mc = Minecraft.getInstance();
         String name = bone.getName();
+        var player = mc.player;
+        if (player == null) return;
+        ItemStack itemStack = player.getMainHandItem();
         boolean renderingArms = false;
         if (name.equals("Lefthand") || name.equals("Righthand")) {
             bone.setHidden(true);
@@ -33,11 +37,10 @@ public class M1911ItemRenderer extends CustomGunRenderer<M1911Item> {
             bone.setHidden(false);
         }
 
-        var player = mc.player;
-        if (player == null) return;
-        ItemStack itemStack = player.getMainHandItem();
         if (itemStack.getItem() instanceof GunItem && GeoItem.getId(itemStack) == this.getInstanceId(animatable)) {
-            AnimationHelper.handleShootFlare(name, stack, itemStack, bone, buffer, packedLightIn, 0, 0, 0.442825, 0.35);
+            if (this.renderPerspective == ItemDisplayContext.FIRST_PERSON_RIGHT_HAND || this.renderPerspective == ItemDisplayContext.THIRD_PERSON_RIGHT_HAND) {
+                AnimationHelper.handleShootFlare(name, stack, itemStack, bone, buffer, packedLightIn, 0, 0, 0.442825, 0.35);
+            }
         }
 
         if (renderingArms) {

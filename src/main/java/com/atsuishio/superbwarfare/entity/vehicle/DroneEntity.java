@@ -4,10 +4,7 @@ import com.atsuishio.superbwarfare.config.server.ExplosionConfig;
 import com.atsuishio.superbwarfare.entity.C4Entity;
 import com.atsuishio.superbwarfare.entity.projectile.*;
 import com.atsuishio.superbwarfare.entity.vehicle.base.MobileVehicleEntity;
-import com.atsuishio.superbwarfare.init.ModDamageTypes;
-import com.atsuishio.superbwarfare.init.ModEntities;
-import com.atsuishio.superbwarfare.init.ModItems;
-import com.atsuishio.superbwarfare.init.ModSounds;
+import com.atsuishio.superbwarfare.init.*;
 import com.atsuishio.superbwarfare.item.Monitor;
 import com.atsuishio.superbwarfare.item.common.ammo.MortarShell;
 import com.atsuishio.superbwarfare.tools.CustomExplosion;
@@ -59,7 +56,6 @@ import software.bernie.geckolib.core.animatable.instance.AnimatableInstanceCache
 import software.bernie.geckolib.core.animation.AnimatableManager;
 import software.bernie.geckolib.util.GeckoLibUtil;
 
-import java.util.Comparator;
 import java.util.Objects;
 import java.util.UUID;
 
@@ -105,16 +101,6 @@ public class DroneEntity extends MobileVehicleEntity implements GeoEntity {
         return Mth.lerp(0.6f * tickDelta, pitchO, getBodyPitch());
     }
 
-    @Override
-    public boolean sendFireStarParticleOnHurt() {
-        return false;
-    }
-
-    @Override
-    public boolean playHitSoundOnHurt() {
-        return false;
-    }
-
     public DroneEntity(EntityType<? extends DroneEntity> type, Level world, float moveX, float moveY, float moveZ) {
         super(type, world);
     }
@@ -130,6 +116,16 @@ public class DroneEntity extends MobileVehicleEntity implements GeoEntity {
 
     @Override
     public boolean causeFallDamage(float l, float d, DamageSource source) {
+        return false;
+    }
+
+    @Override
+    public boolean shouldSendHitParticles() {
+        return false;
+    }
+
+    @Override
+    public boolean shouldSendHitSounds() {
         return false;
     }
 
@@ -389,7 +385,7 @@ public class DroneEntity extends MobileVehicleEntity implements GeoEntity {
                 holdTickZ = 0;
             }
 
-            this.setDeltaMovement(this.getDeltaMovement().multiply(0.97, 0.94, 0.97));
+            this.setDeltaMovement(this.getDeltaMovement().multiply(0.965, 0.935, 0.965));
         } else {
             this.setDeltaMovement(this.getDeltaMovement().multiply(0.8, 1, 0.8));
             this.setZRot(this.roll * 0.7f);
@@ -450,10 +446,10 @@ public class DroneEntity extends MobileVehicleEntity implements GeoEntity {
         float f = 0.7f;
         AABB aabb = AABB.ofSize(this.getEyePosition(), f, 0.3, f);
         var level = this.level();
-        final Vec3 center = new Vec3(this.getX(), this.getY(), this.getZ());
-        for (Entity target : level.getEntitiesOfClass(Entity.class, aabb, e -> true).stream().sorted(Comparator.comparingDouble(e -> e.distanceToSqr(center))).toList()) {
+        for (var target : level.getEntitiesOfClass(Entity.class, aabb, e -> true)) {
             if (this != target && target != null
-                    && !(target instanceof ItemEntity || target instanceof Projectile || target instanceof ProjectileEntity || target instanceof LaserEntity || target instanceof DecoyEntity || target instanceof AreaEffectCloud || target instanceof C4Entity)) {
+                    && !(target instanceof ItemEntity || target instanceof Projectile || target instanceof ProjectileEntity || target instanceof LaserEntity
+                    || target.getType().is(ModTags.EntityTypes.DECOY) || target instanceof AreaEffectCloud || target instanceof C4Entity)) {
                 hitEntityCrash(controller, target);
             }
         }
@@ -498,6 +494,14 @@ public class DroneEntity extends MobileVehicleEntity implements GeoEntity {
 
     @Override
     public float getEngineSoundVolume() {
+        Player player = EntityFindUtil.findPlayer(this.level(), this.entityData.get(CONTROLLER));
+
+        if (player == null) return entityData.get(POWER);
+        ItemStack stack = player.getMainHandItem();
+
+        if (stack.is(ModItems.MONITOR.get()) && stack.getOrCreateTag().getBoolean("Using") && stack.getOrCreateTag().getBoolean("Linked")) {
+            return entityData.get(POWER) * 0.25f;
+        }
         return entityData.get(POWER) * 2f;
     }
 

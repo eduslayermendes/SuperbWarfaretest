@@ -232,7 +232,7 @@ public class GunEventHandler {
         if (reload.singleReloadStarter.start()) {
             MinecraftForge.EVENT_BUS.post(new ReloadEvent.Pre(player, data));
 
-            if (data.defaultPrepareLoadTime() != 0 && data.ammo.get() == 0) {
+            if (data.defaultPrepareLoadTime() != 0 && (data.ammo.get() == 0 || stack.is(ModItems.SECONDARY_CATACLYSM.get()))) {
                 // 此处判断空仓换弹的时候，是否在准备阶段就需要装填一发，如M870
                 playGunPrepareLoadReloadSounds(player);
                 int prepareLoadTime = data.defaultPrepareLoadTime();
@@ -524,8 +524,14 @@ public class GunEventHandler {
     @SubscribeEvent
     public static void onMissingMappings(MissingMappingsEvent event) {
         for (MissingMappingsEvent.Mapping<Item> mapping : event.getAllMappings(Registries.ITEM)) {
-            if (Mod.MODID.equals(mapping.getKey().getNamespace()) && mapping.getKey().getPath().equals("abekiri")) {
-                mapping.remap(ModItems.HOMEMADE_SHOTGUN.get());
+            if (Mod.MODID.equals(mapping.getKey().getNamespace())) {
+                var item = mapping.getKey().getPath();
+                if (item.equals("abekiri")) {
+                    mapping.remap(ModItems.HOMEMADE_SHOTGUN.get());
+                }
+                if (item.equals("m2hb_blueprint")) {
+                    mapping.remap(ModItems.M_2_HB_BLUEPRINT.get());
+                }
             }
         }
     }

@@ -127,6 +127,7 @@ public class GunGrenadeEntity extends FastThrowableProjectile implements GeoEnti
     protected void onHitEntity(EntityHitResult result) {
         float damageMultiplier = 1 + this.monsterMultiplier;
         Entity entity = result.getEntity();
+        if (this.getOwner() != null && this.getOwner().getVehicle() != null && entity == this.getOwner().getVehicle()) return;
 
         if (this.getOwner() instanceof LivingEntity living) {
             if (!living.level().isClientSide() && living instanceof ServerPlayer player) {
@@ -163,21 +164,17 @@ public class GunGrenadeEntity extends FastThrowableProjectile implements GeoEnti
 
     @Override
     public void onHitBlock(BlockHitResult blockHitResult) {
-        super.onHitBlock(blockHitResult);
         BlockPos resultPos = blockHitResult.getBlockPos();
         BlockState state = this.level().getBlockState(resultPos);
+
         if (state.getBlock() instanceof BellBlock bell) {
             bell.attemptToRing(this.level(), resultPos, blockHitResult.getDirection());
         }
-
-        if (this.tickCount > 0) {
-            if (this.level() instanceof ServerLevel) {
-                ProjectileTool.causeCustomExplode(this,
-                        ModDamageTypes.causeProjectileBoomDamage(this.level().registryAccess(), this, this.getOwner()),
-                        this, this.explosionDamage, this.explosionRadius, this.monsterMultiplier);
-            }
+        if (this.level() instanceof ServerLevel) {
+            ProjectileTool.causeCustomExplode(this,
+                    ModDamageTypes.causeProjectileBoomDamage(this.level().registryAccess(), this, this.getOwner()),
+                    this, this.explosionDamage, this.explosionRadius, this.monsterMultiplier);
         }
-
         this.discard();
     }
 

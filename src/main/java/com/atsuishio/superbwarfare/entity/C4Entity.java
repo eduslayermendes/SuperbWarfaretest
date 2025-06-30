@@ -16,6 +16,7 @@ import net.minecraft.nbt.NbtUtils;
 import net.minecraft.network.syncher.EntityDataAccessor;
 import net.minecraft.network.syncher.EntityDataSerializers;
 import net.minecraft.network.syncher.SynchedEntityData;
+import net.minecraft.server.level.ServerLevel;
 import net.minecraft.server.players.OldUsersConverter;
 import net.minecraft.sounds.SoundEvent;
 import net.minecraft.sounds.SoundSource;
@@ -64,13 +65,14 @@ public class C4Entity extends Entity implements GeoEntity, OwnableEntity {
     }
 
     public C4Entity(LivingEntity owner, Level level) {
-        super(ModEntities.C_4.get(), level);
-        this.setOwnerUUID(owner.getUUID());
+        this(owner, level, false);
     }
 
     public C4Entity(LivingEntity owner, Level level, boolean isControllable) {
         super(ModEntities.C_4.get(), level);
-        this.setOwnerUUID(owner.getUUID());
+        if (owner != null) {
+            this.setOwnerUUID(owner.getUUID());
+        }
         this.entityData.set(IS_CONTROLLABLE, isControllable);
     }
 
@@ -401,6 +403,16 @@ public class C4Entity extends Entity implements GeoEntity, OwnableEntity {
             if (target != null) {
                 pos = target.position();
             }
+        }
+
+        if (this.level() instanceof ServerLevel) {
+            AABB aabb = new AABB(pos, pos).inflate(2);
+            BlockPos.betweenClosedStream(aabb).forEach((blockPos) -> {
+                float hard = this.level().getBlockState(blockPos).getBlock().defaultDestroyTime();
+                if (ExplosionConfig.EXPLOSION_DESTROY.get() && hard != -1) {
+                    this.level().destroyBlock(blockPos, true);
+                }
+            });
         }
 
         CustomExplosion explosion = new CustomExplosion(level(), this,
